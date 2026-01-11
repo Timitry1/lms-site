@@ -103,7 +103,7 @@ function addLesson() {
     if (!lessons[currentStudentId]) lessons[currentStudentId] = [];
     lessons[currentStudentId].push({title, materials, homework: hw});
     localStorage.setItem('lessons', JSON.stringify(lessons));
-    loadStudentContent(currentStudentId);
+    loadStudentAdmin(currentStudentId);
 }
 
 function addRoadmap() {
@@ -114,7 +114,7 @@ function addRoadmap() {
     if (!roadmaps[currentStudentId]) roadmaps[currentStudentId] = [];
     roadmaps[currentStudentId].push(step);
     localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
-    loadStudentContent(currentStudentId);
+    loadStudentAdmin(currentStudentId);
 }
 
 // Студент контент
