@@ -1,47 +1,83 @@
-// Инициализация данных (первый запуск)
-if (!localStorage.getItem('students')) {
-    localStorage.setItem('students', JSON.stringify({}));
-}
-if (!localStorage.getItem('lessons')) {
-    localStorage.setItem('lessons', JSON.stringify({}));
-}
-if (!localStorage.getItem('roadmaps')) {
-    localStorage.setItem('roadmaps', JSON.stringify({}));
+// ============================================
+// КОНФИГУРАЦИЯ
+// ============================================
+const API_BASE = 'https://lms-site-1.onrender.com'; // URL вашего backend сервера
+
+// ============================================
+// ИНИЦИАЛИЗАЦИЯ И СИНХРОНИЗАЦИЯ
+// ============================================
+
+// Инициализация localStorage при первом запуске
+function initStorage() {
+    if (!localStorage.getItem('students')) {
+        localStorage.setItem('students', JSON.stringify({}));
+    }
+    if (!localStorage.getItem('lessons')) {
+        localStorage.setItem('lessons', JSON.stringify({}));
+    }
+    if (!localStorage.getItem('roadmaps')) {
+        localStorage.setItem('roadmaps', JSON.stringify({}));
+    }
 }
 
-// Если у вас развернут backend, укажите его URL здесь, например:
-// const API_BASE = 'https://your-backend.example.com';
-// Для локальной разработки: 'http://localhost:3000'
-const API_BASE = 'https://lms-site-1.onrender.com';
-
-// Флаг для предотвращения циклических обновлений
+// Флаг для предотвращения одновременных синхронизаций
 let isSyncing = false;
 
-// Автоматическая синхронизация с сервером
+// Обновление статуса синхронизации
+function updateSyncStatus(status, message) {
+    const statusEl = document.getElementById('syncStatus');
+    if (!statusEl) return;
+    
+    statusEl.className = `sync-status ${status}`;
+    const icon = statusEl.querySelector('span:first-child');
+    const text = statusEl.querySelector('span:last-child');
+    
+    if (icon) {
+        icon.textContent = '●';
+        icon.style.color = {
+            'ready': '#64748b',
+            'syncing': '#f59e0b',
+            'success': '#10b981',
+            'error': '#ef4444'
+        }[status] || '#64748b';
+    }
+    if (text) {
+        text.textContent = message;
+    }
+}
+
+// Синхронизация данных с сервером
 async function syncToServer() {
-    if (!API_BASE || API_BASE.trim() === '' || isSyncing) return;
+    if (!API_BASE || isSyncing) return;
+    
     isSyncing = true;
+    updateSyncStatus('syncing', 'Синхронизация...');
+    
     try {
         const payload = {
             students: JSON.parse(localStorage.getItem('students') || '{}'),
             lessons: JSON.parse(localStorage.getItem('lessons') || '{}'),
             roadmaps: JSON.parse(localStorage.getItem('roadmaps') || '{}')
         };
+        
         const url = API_BASE.replace(/\/$/, '') + '/sync';
-        console.log('Синхронизация с сервером:', url);
-        const res = await fetch(url, {
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        if (!res.ok) {
-            console.warn('Ошибка синхронизации с сервером:', res.status, res.statusText);
-            throw new Error(`Сервер вернул ошибку: ${res.status} ${res.statusText}`);
+        
+        if (!response.ok) {
+            throw new Error(`Сервер вернул ошибку: ${response.status}`);
         }
-        console.log('Синхронизация успешна');
-    } catch (e) {
-        console.error('Ошибка сети при синхронизации:', e.message);
-        throw e;
+        
+        updateSyncStatus('success', 'Синхронизировано');
+        setTimeout(() => updateSyncStatus('ready', 'Готов к синхронизации'), 2000);
+        
+    } catch (error) {
+        console.error('Ошибка синхронизации:', error);
+        updateSyncStatus('error', 'Ошибка синхронизации');
+        setTimeout(() => updateSyncStatus('ready', 'Готов к синхронизации'), 3000);
     } finally {
         isSyncing = false;
     }
@@ -49,197 +85,416 @@ async function syncToServer() {
 
 // Загрузка данных с сервера
 async function syncFromServer() {
-    if (!API_BASE || API_BASE.trim() === '' || isSyncing) return;
+    if (!API_BASE || isSyncing) return;
+    
     isSyncing = true;
+    updateSyncStatus('syncing', 'Загрузка данных...');
+    
     try {
         const url = API_BASE.replace(/\/$/, '') + '/sync';
-        console.log('Загрузка данных с сервера:', url);
-        const res = await fetch(url);
-        if (!res.ok) {
-            console.warn('Ошибка загрузки с сервера:', res.status, res.statusText);
-            return;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`Сервер вернул ошибку: ${response.status}`);
         }
-        const data = await res.json();
-        // Объединяем данные с сервера с локальными (приоритет серверу)
-        const serverStudents = data.students || {};
-        const serverLessons = data.lessons || {};
-        const serverRoadmaps = data.roadmaps || {};
+        
+        const data = await response.json();
         
         // Сохраняем данные с сервера
-        localStorage.setItem('students', JSON.stringify(serverStudents));
-        localStorage.setItem('lessons', JSON.stringify(serverLessons));
-        localStorage.setItem('roadmaps', JSON.stringify(serverRoadmaps));
+        if (data.students) localStorage.setItem('students', JSON.stringify(data.students));
+        if (data.lessons) localStorage.setItem('lessons', JSON.stringify(data.lessons));
+        if (data.roadmaps) localStorage.setItem('roadmaps', JSON.stringify(data.roadmaps));
         
-        console.log('Данные загружены с сервера');
+        updateSyncStatus('success', 'Данные загружены');
+        setTimeout(() => updateSyncStatus('ready', 'Готов к синхронизации'), 2000);
         
         // Обновляем UI
-        if (document.getElementById('studentsList')) loadAdminContent();
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        if (user.role === 'student' && user.id) {
-            loadStudentContent(user.id);
-        }
-        if (currentStudentId) loadStudentAdmin(currentStudentId);
-    } catch (e) {
-        console.warn('Ошибка сети при загрузке:', e.message);
+        refreshUI();
+        
+    } catch (error) {
+        console.error('Ошибка загрузки:', error);
+        updateSyncStatus('error', 'Ошибка загрузки');
+        setTimeout(() => updateSyncStatus('ready', 'Готов к синхронизации'), 3000);
     } finally {
         isSyncing = false;
     }
 }
 
-// Ручной экспорт (для админа)
-async function exportToServer() {
-    if (!API_BASE || API_BASE.trim() === '') {
-        return alert('Укажите API_BASE в script.js для экспорта. Текущее значение: "' + API_BASE + '"');
-    }
-    try {
-        await syncToServer();
-        alert('Экспорт успешно выполнен');
-    } catch (e) {
-        alert('Ошибка экспорта: ' + e.message);
-    }
-}
-
-// Ручной импорт (для админа)
-async function importFromServer() {
-    if (!API_BASE) return alert('Укажите API_BASE в script.js для импорта');
-    if (!confirm('Импорт перезапишет локальные данные. Продолжить?')) return;
-    try {
-        await syncFromServer();
-        alert('Импорт завершён');
-    } catch (e) {
-        alert('Ошибка импорта: ' + e.message);
+// Обновление UI после загрузки данных
+function refreshUI() {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if (user.role === 'admin') {
+        loadAdminContent();
+        if (currentStudentId) {
+            loadStudentAdmin(currentStudentId);
+        }
+    } else if (user.role === 'student' && user.id) {
+        loadStudentContent(user.id);
     }
 }
 
-// Логин
+// ============================================
+// АВТОРИЗАЦИЯ
+// ============================================
+
+// Проверка авторизации при загрузке страницы
 document.addEventListener('DOMContentLoaded', async () => {
-    // Автоматически загружаем данные с сервера при загрузке страницы
+    initStorage();
+    
+    // Автоматическая загрузка данных с сервера при загрузке
     if (API_BASE) {
         await syncFromServer();
     }
     
     const path = window.location.pathname.split('/').pop();
-    if (path === 'index.html' || !path) checkLogin();
-    else loadDashboard(path);
+    if (path === 'index.html' || path === '' || !path) {
+        checkLogin();
+    } else {
+        loadDashboard(path);
+    }
 });
 
+// Обработка формы входа
 function checkLogin() {
-    const email = document.getElementById('email');
-    const password = document.getElementById('password');
     const form = document.getElementById('loginForm');
-    if (form) {
-        form.onsubmit = (e) => {
-            e.preventDefault();
-            const userId = email.value;
-            const pass = password.value;
-            if (userId === 'admin' && pass === 'admin') {
-                localStorage.setItem('user', JSON.stringify({id: 'admin', role: 'admin'}));
-                window.location.href = 'admin.html';
-            } else {
-                const students = JSON.parse(localStorage.getItem('students') || '{}');
-                if (students[userId] && students[userId].password === pass) {  // Регистрируйте с паролем в admin
-                    localStorage.setItem('user', JSON.stringify({id: userId, role: 'student', name: students[userId].name}));
-                    window.location.href = 'student.html';
-                } else {
-                    alert('Неверный логин/пароль');
-                }
-            }
-        };
-    }
+    const errorMessage = document.getElementById('errorMessage');
+    
+    if (!form) return;
+    
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        
+        // Проверка админа
+        if (email === 'admin' && password === 'admin') {
+            localStorage.setItem('user', JSON.stringify({ id: 'admin', role: 'admin' }));
+            window.location.href = 'admin.html';
+            return;
+        }
+        
+        // Проверка ученика
+        const students = JSON.parse(localStorage.getItem('students') || '{}');
+        if (students[email] && students[email].password === password) {
+            localStorage.setItem('user', JSON.stringify({
+                id: email,
+                role: 'student',
+                name: students[email].name
+            }));
+            window.location.href = 'student.html';
+            return;
+        }
+        
+        // Ошибка входа
+        if (errorMessage) {
+            errorMessage.style.display = 'block';
+            errorMessage.className = 'alert alert-error';
+            errorMessage.textContent = 'Неверный логин или пароль';
+        }
+    };
 }
 
+// Загрузка dashboard
 function loadDashboard(page) {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (!user) return window.location.href = 'index.html';
-    if (page === 'admin.html' && user.role !== 'admin') return window.location.href = 'index.html';
-    if (page === 'student.html' && user.role !== 'student') return window.location.href = 'admin.html';
-    document.getElementById(user.role + 'Dash' || 'dashboard').style.display = 'block';
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if (!user || !user.role) {
+        window.location.href = 'index.html';
+        return;
+    }
+    
+    if (page === 'admin.html' && user.role !== 'admin') {
+        window.location.href = 'index.html';
+        return;
+    }
+    
+    if (page === 'student.html' && user.role !== 'student') {
+        window.location.href = 'index.html';
+        return;
+    }
+    
     if (user.role === 'student') {
-        document.getElementById('studentNameDisp').textContent = user.name;
+        document.getElementById('studentDash').style.display = 'block';
+        document.getElementById('studentNameDisp').textContent = user.name || 'Ученик';
         loadStudentContent(user.id);
-    } else {
+    } else if (user.role === 'admin') {
+        document.getElementById('adminDash').style.display = 'block';
         loadAdminContent();
     }
 }
 
+// Выход из системы
 function logout() {
     localStorage.removeItem('user');
     window.location.href = 'index.html';
 }
 
-// Админ функции
+// ============================================
+// АДМИН-ПАНЕЛЬ
+// ============================================
+
+let currentStudentId = '';
+
+// Загрузка списка учеников
 function loadAdminContent() {
     const students = JSON.parse(localStorage.getItem('students') || '{}');
     const list = document.getElementById('studentsList');
+    
+    if (!list) return;
+    
     list.innerHTML = '';
+    
+    if (Object.keys(students).length === 0) {
+        list.innerHTML = '<li class="empty-state"><div class="empty-state-icon">👥</div><p>Нет учеников. Добавьте первого ученика выше.</p></li>';
+        return;
+    }
+    
     Object.keys(students).forEach(id => {
         const li = document.createElement('li');
-        li.innerHTML = `${id}: ${students[id].name} <button onclick="loadStudentAdmin('${id}')">Загрузить</button>`;
+        li.className = 'list-item';
+        li.innerHTML = `
+            <div class="list-item-title">${students[id].name}</div>
+            <div class="list-item-meta">ID: ${id}</div>
+            <button onclick="loadStudentAdmin('${id}')" class="btn btn-primary btn-small" style="margin-top: 8px;">
+                Выбрать для редактирования
+            </button>
+        `;
         list.appendChild(li);
     });
 }
 
+// Добавление ученика
 async function addStudent() {
-    const id = document.getElementById('studentId').value;
-    const name = document.getElementById('studentName').value;
-    if (!id || !name) return alert('Заполните ID и имя');
+    const id = document.getElementById('studentId').value.trim();
+    const name = document.getElementById('studentName').value.trim();
+    const password = document.getElementById('studentPassword').value.trim() || '12345';
+    
+    if (!id || !name) {
+        showAlert('Заполните ID и имя ученика', 'error');
+        return;
+    }
+    
     const students = JSON.parse(localStorage.getItem('students') || '{}');
-    students[id] = {name, password: '12345'};  // Меняйте пароль вручную
+    
+    if (students[id]) {
+        showAlert('Ученик с таким ID уже существует', 'error');
+        return;
+    }
+    
+    students[id] = { name, password };
     localStorage.setItem('students', JSON.stringify(students));
+    
+    // Очистка полей
+    document.getElementById('studentId').value = '';
+    document.getElementById('studentName').value = '';
+    document.getElementById('studentPassword').value = '';
+    
     loadAdminContent();
-    // Автоматически сохраняем на сервер
     await syncToServer();
+    showAlert('Ученик успешно добавлен', 'success');
 }
 
-let currentStudentId = '';
+// Загрузка данных ученика для редактирования
 function loadStudentAdmin(id) {
     currentStudentId = id;
-    document.getElementById('currentStudent').textContent = id;
+    const students = JSON.parse(localStorage.getItem('students') || '{}');
+    document.getElementById('currentStudent').textContent = students[id]?.name || id;
+    
     const lessons = JSON.parse(localStorage.getItem('lessons') || '{}')[id] || [];
-    const list = document.getElementById('lessonsList');
-    list.innerHTML = lessons.map(l => `<li>${l.title}: ${l.materials} | ДЗ: ${l.homework}</li>`).join('');
+    const lessonsList = document.getElementById('lessonsList');
+    
+    if (lessonsList) {
+        lessonsList.innerHTML = '';
+        if (lessons.length === 0) {
+            lessonsList.innerHTML = '<li class="empty-state"><div class="empty-state-icon">📚</div><p>Нет уроков. Добавьте первый урок выше.</p></li>';
+        } else {
+            lessons.forEach((lesson, index) => {
+                const li = document.createElement('li');
+                li.className = 'list-item';
+                li.innerHTML = `
+                    <div class="list-item-title">${lesson.title || 'Без названия'}</div>
+                    <div class="list-item-content">${lesson.materials || 'Нет материалов'}</div>
+                    ${lesson.homework ? `<div class="list-item-meta">ДЗ: ${lesson.homework}</div>` : ''}
+                `;
+                lessonsList.appendChild(li);
+            });
+        }
+    }
+    
     const roadmaps = JSON.parse(localStorage.getItem('roadmaps') || '{}')[id] || [];
-    document.getElementById('roadmapList').innerHTML = roadmaps.map(r => `<li>${r}</li>`).join('');
+    const roadmapList = document.getElementById('roadmapList');
+    
+    if (roadmapList) {
+        roadmapList.innerHTML = '';
+        if (roadmaps.length === 0) {
+            roadmapList.innerHTML = '<li class="empty-state"><div class="empty-state-icon">🗺️</div><p>Нет этапов роудмапа. Добавьте первый этап выше.</p></li>';
+        } else {
+            roadmaps.forEach((step, index) => {
+                const li = document.createElement('li');
+                li.className = 'list-item';
+                li.innerHTML = `
+                    <div class="list-item-title">Этап ${index + 1}: ${step}</div>
+                `;
+                roadmapList.appendChild(li);
+            });
+        }
+    }
 }
 
+// Добавление урока
 async function addLesson() {
-    const title = document.getElementById('lessonTitle').value;
-    const materials = document.getElementById('lessonMaterials').value;
-    const hw = document.getElementById('homework').value;
-    if (!title) return alert('Введите название урока');
-    if (!currentStudentId) return alert('Выберите ученика до добавления урока');
+    const title = document.getElementById('lessonTitle').value.trim();
+    const materials = document.getElementById('lessonMaterials').value.trim();
+    const homework = document.getElementById('homework').value.trim();
+    
+    if (!title) {
+        showAlert('Введите название урока', 'error');
+        return;
+    }
+    
+    if (!currentStudentId) {
+        showAlert('Сначала выберите ученика из списка выше', 'error');
+        return;
+    }
+    
     const lessons = JSON.parse(localStorage.getItem('lessons') || '{}');
-    if (!lessons[currentStudentId]) lessons[currentStudentId] = [];
-    lessons[currentStudentId].push({title, materials, homework: hw});
+    if (!lessons[currentStudentId]) {
+        lessons[currentStudentId] = [];
+    }
+    
+    lessons[currentStudentId].push({ title, materials, homework });
     localStorage.setItem('lessons', JSON.stringify(lessons));
+    
+    // Очистка полей
+    document.getElementById('lessonTitle').value = '';
+    document.getElementById('lessonMaterials').value = '';
+    document.getElementById('homework').value = '';
+    
     loadStudentAdmin(currentStudentId);
-    // Автоматически сохраняем на сервер
     await syncToServer();
+    showAlert('Урок успешно добавлен', 'success');
 }
 
+// Добавление этапа роудмапа
 async function addRoadmap() {
-    const step = document.getElementById('roadmapStep').value;
-    if (!step) return;
+    const step = document.getElementById('roadmapStep').value.trim();
+    
+    if (!step) {
+        showAlert('Введите название этапа', 'error');
+        return;
+    }
+    
+    if (!currentStudentId) {
+        showAlert('Сначала выберите ученика из списка выше', 'error');
+        return;
+    }
+    
     const roadmaps = JSON.parse(localStorage.getItem('roadmaps') || '{}');
-    if (!currentStudentId) return alert('Выберите ученика до добавления этапа роудмапа');
-    if (!roadmaps[currentStudentId]) roadmaps[currentStudentId] = [];
+    if (!roadmaps[currentStudentId]) {
+        roadmaps[currentStudentId] = [];
+    }
+    
     roadmaps[currentStudentId].push(step);
     localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
+    
+    // Очистка поля
+    document.getElementById('roadmapStep').value = '';
+    
     loadStudentAdmin(currentStudentId);
-    // Автоматически сохраняем на сервер
     await syncToServer();
+    showAlert('Этап роудмапа успешно добавлен', 'success');
 }
 
-// Студент контент
+// ============================================
+// КАБИНЕТ УЧЕНИКА
+// ============================================
+
+// Загрузка контента для ученика
 function loadStudentContent(id) {
     const lessons = JSON.parse(localStorage.getItem('lessons') || '{}')[id] || [];
-    document.getElementById('lessonsStudent').innerHTML = lessons.map(l => `<li><strong>${l.title}</strong><br>Материалы: ${l.materials}<br>ДЗ: ${l.homework}</li>`).join('');
+    const lessonsList = document.getElementById('lessonsStudent');
+    
+    if (lessonsList) {
+        lessonsList.innerHTML = '';
+        if (lessons.length === 0) {
+            lessonsList.innerHTML = '<li class="empty-state"><div class="empty-state-icon">📚</div><p>Пока нет уроков. Ожидайте, пока преподаватель добавит материалы.</p></li>';
+        } else {
+            lessons.forEach(lesson => {
+                const li = document.createElement('li');
+                li.className = 'list-item';
+                li.innerHTML = `
+                    <div class="list-item-title">${lesson.title || 'Без названия'}</div>
+                    <div class="list-item-content">${lesson.materials || 'Нет материалов'}</div>
+                `;
+                lessonsList.appendChild(li);
+            });
+        }
+    }
+    
+    const homeworks = lessons.filter(l => l.homework).map(l => l.homework);
+    const homeworkList = document.getElementById('homeworkList');
+    
+    if (homeworkList) {
+        homeworkList.innerHTML = '';
+        if (homeworks.length === 0) {
+            homeworkList.innerHTML = '<li class="empty-state"><div class="empty-state-icon">📝</div><p>Нет домашних заданий.</p></li>';
+        } else {
+            homeworks.forEach(hw => {
+                const li = document.createElement('li');
+                li.className = 'list-item';
+                li.innerHTML = `
+                    <div class="list-item-content">${hw}</div>
+                `;
+                homeworkList.appendChild(li);
+            });
+        }
+    }
+    
     const roadmaps = JSON.parse(localStorage.getItem('roadmaps') || '{}')[id] || [];
-    document.getElementById('roadmapStudent').innerHTML = roadmaps.map(r => `<li>${r}</li>`).join('');
-    const hws = lessons.map(l => l.homework).filter(h => h);
-    document.getElementById('homeworkList').innerHTML = hws.map(hw => `<li>${hw}</li>`).join('');
+    const roadmapList = document.getElementById('roadmapStudent');
+    
+    if (roadmapList) {
+        roadmapList.innerHTML = '';
+        if (roadmaps.length === 0) {
+            roadmapList.innerHTML = '<li class="empty-state"><div class="empty-state-icon">🗺️</div><p>Роудмап обучения пока не создан.</p></li>';
+        } else {
+            roadmaps.forEach((step, index) => {
+                const li = document.createElement('li');
+                li.className = 'list-item';
+                li.innerHTML = `
+                    <div class="list-item-title">Этап ${index + 1}: ${step}</div>
+                `;
+                roadmapList.appendChild(li);
+            });
+        }
+    }
 }
 
-function refreshCurrent() {
-    if (currentStudentId) loadStudentContent(currentStudentId);
+// ============================================
+// УТИЛИТЫ
+// ============================================
+
+// Показ уведомлений
+function showAlert(message, type = 'info') {
+    // Создаем элемент уведомления
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type}`;
+    alert.textContent = message;
+    alert.style.position = 'fixed';
+    alert.style.top = '20px';
+    alert.style.right = '20px';
+    alert.style.zIndex = '10000';
+    alert.style.maxWidth = '400px';
+    alert.style.animation = 'slideUp 0.3s ease-out';
+    
+    document.body.appendChild(alert);
+    
+    setTimeout(() => {
+        alert.style.opacity = '0';
+        alert.style.transform = 'translateY(-20px)';
+        alert.style.transition = 'all 0.3s ease';
+        setTimeout(() => alert.remove(), 300);
+    }, 3000);
 }

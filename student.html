@@ -3,19 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Кабинет ученика - LMS</title>
+    <title>Мой кабинет - LMS</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="dashboard" id="studentDash">
-        <h1>Ваш кабинет, <span id="studentNameDisp">Ученик</span></h1>
-        <button onclick="logout()">Выход</button>
-        <h2>Прошедшие уроки</h2>
-        <ul id="lessonsStudent"></ul>
-        <h2>Домашние задания</h2>
-        <ul id="homeworkList"></ul>
-        <h2>Роудмап обучения</h2>
-        <ul id="roadmapStudent"></ul>
+        <div class="dashboard-header">
+            <div>
+                <h1>Добро пожаловать, <span id="studentNameDisp">Ученик</span>!</h1>
+                <div class="sync-status" id="syncStatus">
+                    <span>●</span>
+                    <span>Синхронизация...</span>
+                </div>
+            </div>
+            <button onclick="logout()" class="btn btn-danger btn-small">Выход</button>
+        </div>
+
+        <!-- Уроки -->
+        <div class="card">
+            <h2 class="card-title">📖 Прошедшие уроки</h2>
+            <div id="lessonsStudentContainer">
+                <ul id="lessonsStudent" class="list"></ul>
+            </div>
+        </div>
+
+        <!-- Домашние задания -->
+        <div class="card">
+            <h2 class="card-title">📝 Домашние задания</h2>
+            <div id="homeworkContainer">
+                <ul id="homeworkList" class="list"></ul>
+            </div>
+        </div>
+
+        <!-- Роудмап -->
+        <div class="card">
+            <h2 class="card-title">🗺️ Роудмап обучения</h2>
+            <div id="roadmapContainer">
+                <ul id="roadmapStudent" class="list"></ul>
+            </div>
+        </div>
     </div>
     <script src="script.js"></script>
 </body>

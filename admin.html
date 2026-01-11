@@ -3,33 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Админ - LMS</title>
+    <title>Админ-панель - LMS</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="dashboard" id="adminDash">
-        <h1>Админ-панель</h1>
-        <button onclick="logout()">Выход</button>
-        <div style="margin-top:10px">
-            <button onclick="exportToServer()">Экспорт на сервер</button>
-            <button onclick="importFromServer()">Импорт с сервера</button>
-            <small>Нужен запущенный backend и указанный `API_BASE` в script.js</small>
+        <div class="dashboard-header">
+            <div>
+                <h1>Админ-панель</h1>
+                <div class="sync-status" id="syncStatus">
+                    <span>●</span>
+                    <span>Готов к синхронизации</span>
+                </div>
+            </div>
+            <div class="user-info">
+                <button onclick="logout()" class="btn btn-danger btn-small">Выход</button>
+            </div>
         </div>
-        <h2>Ученики</h2>
-        <input id="studentId" placeholder="ID ученика">
-        <input id="studentName" placeholder="Имя">
-        <button onclick="addStudent()">Добавить ученика</button>
-        <ul id="studentsList"></ul>
-        <h2>Управление контентом для <span id="currentStudent">ID</span></h2>
-        <input id="lessonTitle" placeholder="Название урока">
-        <textarea id="lessonMaterials" placeholder="Материалы"></textarea>
-        <input id="homework" placeholder="Домашка">
-        <button onclick="addLesson()">Добавить урок</button>
-        <ul id="lessonsList"></ul>
-        <h3>Роудмап</h3>
-        <input id="roadmapStep" placeholder="Этап роудмапа">
-        <button onclick="addRoadmap()">Добавить этап</button>
-        <ul id="roadmapList"></ul>
+
+        <!-- Управление учениками -->
+        <div class="card">
+            <h2 class="card-title">👥 Управление учениками</h2>
+            <div class="form-row">
+                <input 
+                    type="text" 
+                    id="studentId" 
+                    class="form-input" 
+                    placeholder="ID ученика (например: student1)"
+                >
+                <input 
+                    type="text" 
+                    id="studentName" 
+                    class="form-input" 
+                    placeholder="Имя ученика"
+                >
+                <input 
+                    type="password" 
+                    id="studentPassword" 
+                    class="form-input" 
+                    placeholder="Пароль (по умолчанию: 12345)"
+                >
+                <button onclick="addStudent()" class="btn btn-primary">Добавить ученика</button>
+            </div>
+            <div id="studentsListContainer">
+                <ul id="studentsList" class="list"></ul>
+            </div>
+        </div>
+
+        <!-- Управление контентом -->
+        <div class="card">
+            <h2 class="card-title">📚 Управление контентом</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                Выбранный ученик: <strong id="currentStudent">Не выбран</strong>
+            </p>
+            
+            <div style="margin-bottom: 24px;">
+                <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--text-primary);">Добавить урок</h3>
+                <div class="form-row">
+                    <input 
+                        type="text" 
+                        id="lessonTitle" 
+                        class="form-input" 
+                        placeholder="Название урока"
+                    >
+                </div>
+                <textarea 
+                    id="lessonMaterials" 
+                    class="form-input" 
+                    placeholder="Материалы урока (ссылки, описание, заметки)"
+                    style="margin-bottom: 12px;"
+                ></textarea>
+                <div class="form-row">
+                    <input 
+                        type="text" 
+                        id="homework" 
+                        class="form-input" 
+                        placeholder="Домашнее задание"
+                    >
+                    <button onclick="addLesson()" class="btn btn-success">Добавить урок</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--text-primary);">Добавить этап роудмапа</h3>
+                <div class="form-row">
+                    <input 
+                        type="text" 
+                        id="roadmapStep" 
+                        class="form-input" 
+                        placeholder="Название этапа обучения"
+                    >
+                    <button onclick="addRoadmap()" class="btn btn-secondary">Добавить этап</button>
+                </div>
+            </div>
+
+            <div id="contentContainer">
+                <div style="margin-bottom: 24px;">
+                    <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--text-primary);">Уроки</h3>
+                    <ul id="lessonsList" class="list"></ul>
+                </div>
+                <div>
+                    <h3 style="font-size: 18px; margin-bottom: 12px; color: var(--text-primary);">Роудмап обучения</h3>
+                    <ul id="roadmapList" class="list"></ul>
+                </div>
+            </div>
+        </div>
     </div>
     <script src="script.js"></script>
 </body>
