@@ -7,7 +7,7 @@ const API_BASE = 'https://lms-back-vveh.onrender.com'; // URL вашего backe
 // ИНИЦИАЛИЗАЦИЯ И СИНХРОНИЗАЦИЯ
 // ============================================
 
-// Инициализация localStorage при первом запуске
+// Инициализация localStorage при первом запуске2
 function initStorage() {
     if (!localStorage.getItem('students')) {
         localStorage.setItem('students', JSON.stringify({}));
