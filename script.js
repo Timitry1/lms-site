@@ -67,7 +67,7 @@ function loadAdminContent() {
     list.innerHTML = '';
     Object.keys(students).forEach(id => {
         const li = document.createElement('li');
-        li.innerHTML = `${id}: ${students[id].name} <button onclick="loadStudentContent('${id}')">Загрузить</button>`;
+        li.innerHTML = `${id}: ${students[id].name} <button onclick="loadStudentAdmin('${id}')">Загрузить</button>`;
         list.appendChild(li);
     });
 }
@@ -83,7 +83,7 @@ function addStudent() {
 }
 
 let currentStudentId = '';
-function loadStudentContent(id) {
+function loadStudentAdmin(id) {
     currentStudentId = id;
     document.getElementById('currentStudent').textContent = id;
     const lessons = JSON.parse(localStorage.getItem('lessons') || '{}')[id] || [];
@@ -97,7 +97,8 @@ function addLesson() {
     const title = document.getElementById('lessonTitle').value;
     const materials = document.getElementById('lessonMaterials').value;
     const hw = document.getElementById('homework').value;
-    if (!title) return;
+    if (!title) return alert('Введите название урока');
+    if (!currentStudentId) return alert('Выберите ученика до добавления урока');
     const lessons = JSON.parse(localStorage.getItem('lessons') || '{}');
     if (!lessons[currentStudentId]) lessons[currentStudentId] = [];
     lessons[currentStudentId].push({title, materials, homework: hw});
@@ -109,6 +110,7 @@ function addRoadmap() {
     const step = document.getElementById('roadmapStep').value;
     if (!step) return;
     const roadmaps = JSON.parse(localStorage.getItem('roadmaps') || '{}');
+    if (!currentStudentId) return alert('Выберите ученика до добавления этапа роудмапа');
     if (!roadmaps[currentStudentId]) roadmaps[currentStudentId] = [];
     roadmaps[currentStudentId].push(step);
     localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
