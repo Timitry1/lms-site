@@ -1105,7 +1105,7 @@ function initRoadmapEditor(studentId, roadmapData) {
         } else {
             const node = getNodeAt(e.clientX, e.clientY);
             if (isConnectMode) {
-                canvas.style.cursor = connectingFrom ? 'crosshair' : (node ? 'crosshair' : 'default');
+                canvas.style.cursor = state.connectingFrom ? 'crosshair' : (node ? 'crosshair' : 'default');
             } else {
                 canvas.style.cursor = node ? 'grab' : 'default';
             }
