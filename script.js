@@ -124,3 +124,7 @@ function loadStudentContent(id) {
     const hws = lessons.map(l => l.homework).filter(h => h);
     document.getElementById('homeworkList').innerHTML = hws.map(hw => `<li>${hw}</li>`).join('');
 }
+
+function refreshCurrent() {
+    if (currentStudentId) loadStudentContent(currentStudentId);
+}
