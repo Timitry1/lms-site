@@ -1115,7 +1115,7 @@ function initRoadmapEditor(studentId, roadmapData) {
             
             // Градиент для ноды
             const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-            if (node === state.selectedNode) {
+            if (node === state.selectedNode || node === state.connectingFrom) { // Подсветка для выделенного и исходного узла связи
                 gradient.addColorStop(0, '#818cf8');
                 gradient.addColorStop(1, '#6366f1');
             } else if (node.completed) {
@@ -1127,7 +1127,7 @@ function initRoadmapEditor(studentId, roadmapData) {
             }
             
             // Тень с эффектом свечения
-            ctx.shadowColor = node === state.selectedNode ? 'rgba(99, 102, 241, 0.4)' : 
+            ctx.shadowColor = (node === state.selectedNode || node === state.connectingFrom) ? 'rgba(99, 102, 241, 0.4)' : 
                              (node.completed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(0, 0, 0, 0.2)');
             ctx.shadowBlur = node === state.selectedNode ? 15 : 12;
             ctx.shadowOffsetX = 0;
@@ -1146,9 +1146,9 @@ function initRoadmapEditor(studentId, roadmapData) {
             ctx.shadowOffsetY = 0;
             
             // Обводка (более заметная)
-            ctx.strokeStyle = node === state.selectedNode ? '#4f46e5' : 
+            ctx.strokeStyle = (node === state.selectedNode || node === state.connectingFrom) ? '#4f46e5' : 
                             (node.completed ? '#059669' : '#64748b');
-            ctx.lineWidth = node === state.selectedNode ? 4 : 3.5;
+            ctx.lineWidth = (node === state.selectedNode || node === state.connectingFrom) ? 4 : 3.5;
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
             ctx.stroke();
@@ -1163,7 +1163,7 @@ function initRoadmapEditor(studentId, roadmapData) {
             }
             
             // Текст
-            ctx.fillStyle = node === state.selectedNode || node.completed ? '#ffffff' : '#1e293b';
+            ctx.fillStyle = (node === state.selectedNode || node === state.connectingFrom || node.completed) ? '#ffffff' : '#1e293b';
             ctx.font = 'bold 13px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -1335,20 +1335,38 @@ function initRoadmapEditor(studentId, roadmapData) {
     canvas.addEventListener('click', (e) => {
         const connectModeBtn = document.getElementById('connectModeBtn');
         const isConnectMode = connectModeBtn && connectModeBtn.textContent.includes('(вкл)');
-        
-        if (!isConnectMode) {
-            const node = getNodeAt(e.clientX, e.clientY);
+        const node = getNodeAt(e.clientX, e.clientY);
+
+        if (isConnectMode) {
+            if (node) {
+                if (state.connectingFrom) {
+                    if (state.connectingFrom !== node && !connections.find(c => c.from === state.connectingFrom.id && c.to === node.id)) {
+                        connections.push({ from: state.connectingFrom.id, to: node.id });
+                        saveRoadmapData(studentId);
+                        showAlert('Связь создана', 'success');
+                    }
+                    state.connectingFrom = null; // Сбрасываем для создания следующей связи
+                } else {
+                    // Первый клик: запоминаем узел
+                    state.connectingFrom = node;
+                }
+            } else {
+                // Клик на пустом месте: сбрасываем выбор
+                state.connectingFrom = null;
+            }
+            draw(); // Перерисовываем, чтобы показать подсветку
+        } else {
+            // Логика для обычного режима (не режим соединения)
             if (node) {
                 state.selectedNode = node;
                 const deleteBtn = document.getElementById('deleteNodeBtn');
                 if (deleteBtn) deleteBtn.style.display = 'inline-block';
-                draw();
             } else {
                 state.selectedNode = null;
                 const deleteBtn = document.getElementById('deleteNodeBtn');
                 if (deleteBtn) deleteBtn.style.display = 'none';
-                draw();
             }
+            draw();
         }
     });
     
