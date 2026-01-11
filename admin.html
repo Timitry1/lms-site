@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ - LMS</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard" id="adminDash">
+        <h1>Админ-панель</h1>
+        <button onclick="logout()">Выход</button>
+        <h2>Ученики</h2>
+        <input id="studentId" placeholder="ID ученика">
+        <input id="studentName" placeholder="Имя">
+        <button onclick="addStudent()">Добавить ученика</button>
+        <ul id="studentsList"></ul>
+        <h2>Управление контентом для <span id="currentStudent">ID</span></h2>
+        <input id="lessonTitle" placeholder="Название урока">
+        <textarea id="lessonMaterials" placeholder="Материалы"></textarea>
+        <input id="homework" placeholder="Домашка">
+        <button onclick="addLesson()">Добавить урок</button>
+        <ul id="lessonsList"></ul>
+        <h3>Роудмап</h3>
+        <input id="roadmapStep" placeholder="Этап роудмапа">
+        <button onclick="addRoadmap()">Добавить этап</button>
+        <ul id="roadmapList"></ul>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
