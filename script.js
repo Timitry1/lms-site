@@ -11,10 +11,16 @@ if (!localStorage.getItem('roadmaps')) {
 
 // Если у вас развернут backend, укажите его URL здесь, например:
 // const API_BASE = 'https://your-backend.example.com';
-const API_BASE = '';
+// Для локальной разработки: 'http://localhost:3000'
+const API_BASE = 'https://lms-site-1.onrender.com/';
 
-async function exportToServer() {
-    if (!API_BASE) return alert('Укажите API_BASE в script.js для экспорта');
+// Флаг для предотвращения циклических обновлений
+let isSyncing = false;
+
+// Автоматическая синхронизация с сервером
+async function syncToServer() {
+    if (!API_BASE || isSyncing) return;
+    isSyncing = true;
     try {
         const payload = {
             students: JSON.parse(localStorage.getItem('students') || '{}'),
@@ -26,35 +32,81 @@ async function exportToServer() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        const data = await res.json();
-        if (res.ok) alert('Экспорт успешно выполнен');
-        else alert('Ошибка экспорта: ' + (data.error || res.status));
+        if (!res.ok) {
+            console.warn('Ошибка синхронизации с сервером:', res.status);
+        }
     } catch (e) {
-        alert('Ошибка сети при экспорте: ' + e.message);
+        console.warn('Ошибка сети при синхронизации:', e.message);
+    } finally {
+        isSyncing = false;
     }
 }
 
+// Загрузка данных с сервера
+async function syncFromServer() {
+    if (!API_BASE || isSyncing) return;
+    isSyncing = true;
+    try {
+        const res = await fetch(API_BASE.replace(/\/$/, '') + '/sync');
+        if (!res.ok) {
+            console.warn('Ошибка загрузки с сервера:', res.status);
+            return;
+        }
+        const data = await res.json();
+        // Объединяем данные с сервера с локальными (приоритет серверу)
+        const serverStudents = data.students || {};
+        const serverLessons = data.lessons || {};
+        const serverRoadmaps = data.roadmaps || {};
+        
+        // Сохраняем данные с сервера
+        localStorage.setItem('students', JSON.stringify(serverStudents));
+        localStorage.setItem('lessons', JSON.stringify(serverLessons));
+        localStorage.setItem('roadmaps', JSON.stringify(serverRoadmaps));
+        
+        // Обновляем UI
+        if (document.getElementById('studentsList')) loadAdminContent();
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (user.role === 'student' && user.id) {
+            loadStudentContent(user.id);
+        }
+        if (currentStudentId) loadStudentAdmin(currentStudentId);
+    } catch (e) {
+        console.warn('Ошибка сети при загрузке:', e.message);
+    } finally {
+        isSyncing = false;
+    }
+}
+
+// Ручной экспорт (для админа)
+async function exportToServer() {
+    if (!API_BASE) return alert('Укажите API_BASE в script.js для экспорта');
+    try {
+        await syncToServer();
+        alert('Экспорт успешно выполнен');
+    } catch (e) {
+        alert('Ошибка экспорта: ' + e.message);
+    }
+}
+
+// Ручной импорт (для админа)
 async function importFromServer() {
     if (!API_BASE) return alert('Укажите API_BASE в script.js для импорта');
     if (!confirm('Импорт перезапишет локальные данные. Продолжить?')) return;
     try {
-        const res = await fetch(API_BASE.replace(/\/$/, '') + '/sync');
-        if (!res.ok) return alert('Ошибка импорта: ' + res.status);
-        const data = await res.json();
-        localStorage.setItem('students', JSON.stringify(data.students || {}));
-        localStorage.setItem('lessons', JSON.stringify(data.lessons || {}));
-        localStorage.setItem('roadmaps', JSON.stringify(data.roadmaps || {}));
+        await syncFromServer();
         alert('Импорт завершён');
-        // Обновим UI
-        if (document.getElementById('studentsList')) loadAdminContent();
-        if (currentStudentId) loadStudentAdmin(currentStudentId);
     } catch (e) {
-        alert('Ошибка сети при импорте: ' + e.message);
+        alert('Ошибка импорта: ' + e.message);
     }
 }
 
 // Логин
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // Автоматически загружаем данные с сервера при загрузке страницы
+    if (API_BASE) {
+        await syncFromServer();
+    }
+    
     const path = window.location.pathname.split('/').pop();
     if (path === 'index.html' || !path) checkLogin();
     else loadDashboard(path);
@@ -116,7 +168,7 @@ function loadAdminContent() {
     });
 }
 
-function addStudent() {
+async function addStudent() {
     const id = document.getElementById('studentId').value;
     const name = document.getElementById('studentName').value;
     if (!id || !name) return alert('Заполните ID и имя');
@@ -124,6 +176,8 @@ function addStudent() {
     students[id] = {name, password: '12345'};  // Меняйте пароль вручную
     localStorage.setItem('students', JSON.stringify(students));
     loadAdminContent();
+    // Автоматически сохраняем на сервер
+    await syncToServer();
 }
 
 let currentStudentId = '';
@@ -137,7 +191,7 @@ function loadStudentAdmin(id) {
     document.getElementById('roadmapList').innerHTML = roadmaps.map(r => `<li>${r}</li>`).join('');
 }
 
-function addLesson() {
+async function addLesson() {
     const title = document.getElementById('lessonTitle').value;
     const materials = document.getElementById('lessonMaterials').value;
     const hw = document.getElementById('homework').value;
@@ -148,9 +202,11 @@ function addLesson() {
     lessons[currentStudentId].push({title, materials, homework: hw});
     localStorage.setItem('lessons', JSON.stringify(lessons));
     loadStudentAdmin(currentStudentId);
+    // Автоматически сохраняем на сервер
+    await syncToServer();
 }
 
-function addRoadmap() {
+async function addRoadmap() {
     const step = document.getElementById('roadmapStep').value;
     if (!step) return;
     const roadmaps = JSON.parse(localStorage.getItem('roadmaps') || '{}');
@@ -159,6 +215,8 @@ function addRoadmap() {
     roadmaps[currentStudentId].push(step);
     localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
     loadStudentAdmin(currentStudentId);
+    // Автоматически сохраняем на сервер
+    await syncToServer();
 }
 
 // Студент контент

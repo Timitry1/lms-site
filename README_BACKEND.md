@@ -24,11 +24,20 @@ By default the server listens on port `3000`.
 
 Client setup:
 1. Open `script.js` and set `API_BASE` to your server URL, e.g. `https://example.com` or `http://localhost:3000`.
-2. In `admin.html` you'll see two new buttons: `Экспорт на сервер` and `Импорт с сервера`.
+2. Save and deploy the updated `script.js` to your GitHub Pages.
+
+Automatic synchronization:
+- **On page load**: Data is automatically loaded from the server
+- **On data changes**: Data is automatically saved to the server when:
+  - Adding a student
+  - Adding a lesson
+  - Adding a roadmap step
+- **Manual sync**: In `admin.html` you'll see two buttons: `Экспорт на сервер` and `Импорт с сервера` for manual synchronization if needed.
 
 Usage:
-- Click `Экспорт на сервер` to push all `students`, `lessons`, `roadmaps` from `localStorage` to the server.
-- Click `Импорт с сервера` on another device (with `API_BASE` set) to pull the data and overwrite localStorage.
+- Once `API_BASE` is set, synchronization happens automatically
+- All devices will see the same data
+- No manual export/import needed in normal use
 
 Deployment:
 - You can deploy `server.js` to any Node hosting (Render, Railway, Heroku alternative, or VPS). Make sure CORS is allowed (server already enables it).
