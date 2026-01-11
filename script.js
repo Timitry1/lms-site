@@ -698,6 +698,16 @@ function initRoadmapEditor(studentId, roadmapData) {
         ctx.translate(panX, panY);
         ctx.scale(scale, scale);
         
+        // Проверка наличия узлов
+        if (nodes.length === 0) {
+            ctx.restore();
+            ctx.fillStyle = '#64748b';
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Нет узлов. Добавьте первый узел.', canvas.width / 2, canvas.height / 2);
+            return;
+        }
+        
         // Рисуем временную линию при перетаскивании связи (будет обновляться в mousemove)
         if (state.isDraggingConnection && state.dragStartNode && state.tempConnectionEnd) {
             ctx.strokeStyle = '#6366f1';
@@ -736,8 +746,9 @@ function initRoadmapEditor(studentId, roadmapData) {
         
         // Рисуем узлы с анимацией плавания
         nodes.forEach((node, index) => {
-            const baseX = node.x;
-            const baseY = node.y;
+            // Базовые координаты узла
+            const baseX = node.x || 100;
+            const baseY = node.y || 100;
             
             // Анимация плавания (разные фазы для разных нод)
             const phase = (animationTime + index * 0.5) % (Math.PI * 2);
@@ -746,8 +757,19 @@ function initRoadmapEditor(studentId, roadmapData) {
             const x = baseX + floatX;
             const y = baseY + floatY;
             
+            // Центр узла (смещение для отображения текста и окружности)
+            const centerX = x + 60;
+            const centerY = y + 40;
+            const radius = 40;
+            
+            // Проверка, что координаты валидны
+            if (isNaN(centerX) || isNaN(centerY)) {
+                console.warn('Invalid node coordinates:', node);
+                return;
+            }
+            
             // Градиент для ноды
-            const gradient = ctx.createRadialGradient(x + 60, y + 40, 0, x + 60, y + 40, 40);
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
             if (node === state.selectedNode) {
                 gradient.addColorStop(0, '#818cf8');
                 gradient.addColorStop(1, '#6366f1');
@@ -756,32 +778,44 @@ function initRoadmapEditor(studentId, roadmapData) {
                 gradient.addColorStop(1, '#10b981');
             } else {
                 gradient.addColorStop(0, '#ffffff');
-                gradient.addColorStop(1, '#f1f5f9');
+                gradient.addColorStop(1, '#e2e8f0');
             }
             
             // Тень с эффектом свечения
             ctx.shadowColor = node === state.selectedNode ? 'rgba(99, 102, 241, 0.4)' : 
-                             (node.completed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(0, 0, 0, 0.15)');
-            ctx.shadowBlur = node === state.selectedNode ? 15 : 10;
+                             (node.completed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(0, 0, 0, 0.2)');
+            ctx.shadowBlur = node === state.selectedNode ? 15 : 12;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 4;
             
             // Фон узла
             ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(x + 60, y + 40, 40, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
             ctx.fill();
             
+            // Сброс тени перед обводкой
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
             
-            // Обводка
+            // Обводка (более заметная)
             ctx.strokeStyle = node === state.selectedNode ? '#4f46e5' : 
-                            (node.completed ? '#059669' : '#cbd5e1');
-            ctx.lineWidth = node === state.selectedNode ? 4 : 3;
+                            (node.completed ? '#059669' : '#64748b');
+            ctx.lineWidth = node === state.selectedNode ? 4 : 3.5;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
             ctx.stroke();
+            
+            // Дополнительная внутренняя обводка для лучшей видимости
+            if (node !== state.selectedNode && !node.completed) {
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius - 1, 0, Math.PI * 2);
+                ctx.stroke();
+            }
             
             // Текст
             ctx.fillStyle = node === state.selectedNode || node.completed ? '#ffffff' : '#1e293b';
@@ -789,13 +823,13 @@ function initRoadmapEditor(studentId, roadmapData) {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             const text = node.title.length > 15 ? node.title.substring(0, 12) + '...' : node.title;
-            ctx.fillText(text, x + 60, y + 40);
+            ctx.fillText(text, centerX, centerY);
             
             // Индикатор выполнения
             if (node.completed) {
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 18px sans-serif';
-                ctx.fillText('✓', x + 60, y + 40);
+                ctx.fillText('✓', centerX, centerY);
             }
         });
         
@@ -1298,25 +1332,30 @@ function initRoadmapView(studentId, roadmapData) {
             const x = baseX + floatX;
             const y = baseY + floatY;
             
+            const centerX = x + 60;
+            const centerY = y + 40;
+            const radius = 40;
+            
             // Градиент
-            const gradient = ctx.createRadialGradient(x + 60, y + 40, 0, x + 60, y + 40, 40);
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
             if (node.completed) {
                 gradient.addColorStop(0, '#34d399');
                 gradient.addColorStop(1, '#10b981');
             } else {
                 gradient.addColorStop(0, '#ffffff');
-                gradient.addColorStop(1, '#f1f5f9');
+                gradient.addColorStop(0.7, '#f1f5f9');
+                gradient.addColorStop(1, '#e2e8f0');
             }
             
             // Тень
-            ctx.shadowColor = node.completed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(0, 0, 0, 0.15)';
-            ctx.shadowBlur = 10;
+            ctx.shadowColor = node.completed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(0, 0, 0, 0.25)';
+            ctx.shadowBlur = 12;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 4;
             
             ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(x + 60, y + 40, 40, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
             ctx.fill();
             
             ctx.shadowColor = 'transparent';
@@ -1324,21 +1363,33 @@ function initRoadmapView(studentId, roadmapData) {
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
             
-            ctx.strokeStyle = node.completed ? '#059669' : '#cbd5e1';
-            ctx.lineWidth = 3;
+            // Обводка (более заметная)
+            ctx.strokeStyle = node.completed ? '#059669' : '#64748b';
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
             ctx.stroke();
+            
+            // Дополнительная внутренняя обводка для лучшей видимости
+            if (!node.completed) {
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius - 1, 0, Math.PI * 2);
+                ctx.stroke();
+            }
             
             ctx.fillStyle = node.completed ? '#ffffff' : '#1e293b';
             ctx.font = 'bold 13px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             const text = node.title.length > 15 ? node.title.substring(0, 12) + '...' : node.title;
-            ctx.fillText(text, x + 60, y + 40);
+            ctx.fillText(text, centerX, centerY);
             
             if (node.completed) {
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 18px sans-serif';
-                ctx.fillText('✓', x + 60, y + 40);
+                ctx.fillText('✓', centerX, centerY);
             }
         });
         
