@@ -294,11 +294,23 @@ function loadAdminContent() {
         const li = document.createElement('li');
         li.className = 'list-item';
         li.innerHTML = `
-            <div class="list-item-title">${students[id].name}</div>
-            <div class="list-item-meta">ID: ${id}</div>
-            <button onclick="loadStudentAdmin('${id}')" class="btn btn-primary btn-small" style="margin-top: 8px;">
-                Выбрать для редактирования
-            </button>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+                <div style="flex: 1; min-width: 200px;">
+                    <div class="list-item-title">${students[id].name}</div>
+                    <div class="list-item-meta">ID: ${id}</div>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button onclick="loadStudentAdmin('${id}')" class="btn btn-primary btn-small">
+                        📚 Управление контентом
+                    </button>
+                    <button onclick="editStudent('${id}')" class="btn btn-secondary btn-small">
+                        ✏️ Редактировать
+                    </button>
+                    <button onclick="deleteStudent('${id}')" class="btn btn-danger btn-small">
+                        🗑️ Удалить
+                    </button>
+                </div>
+            </div>
         `;
         list.appendChild(li);
     });
@@ -333,6 +345,154 @@ async function addStudent() {
     loadAdminContent();
     await syncToServer();
     showAlert('Ученик успешно добавлен', 'success');
+}
+
+// Редактирование ученика
+async function editStudent(studentId) {
+    const students = JSON.parse(localStorage.getItem('students') || '{}');
+    const student = students[studentId];
+    
+    if (!student) {
+        showAlert('Ученик не найден', 'error');
+        return;
+    }
+    
+    // Создаем модальное окно для редактирования
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: white; padding: 24px; border-radius: 12px; max-width: 500px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <h2 style="margin-bottom: 20px; color: var(--text-primary);">Редактировать ученика</h2>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">ID ученика</label>
+                    <input type="text" id="editStudentId" value="${studentId}" class="form-input" readonly style="background: var(--bg-color);">
+                    <small style="color: var(--text-secondary); font-size: 12px;">ID нельзя изменить</small>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Имя ученика</label>
+                    <input type="text" id="editStudentName" value="${student.name}" class="form-input" required>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Пароль</label>
+                    <input type="password" id="editStudentPassword" value="${student.password}" class="form-input" placeholder="Оставьте пустым, чтобы не менять">
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 8px;">
+                    <button onclick="saveStudentEdit('${studentId}')" class="btn btn-primary" style="flex: 1;">Сохранить</button>
+                    <button onclick="closeEditModal()" class="btn btn-secondary" style="flex: 1;">Отмена</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.id = 'editStudentModal';
+    
+    // Фокус на поле имени
+    setTimeout(() => {
+        document.getElementById('editStudentName').focus();
+    }, 100);
+}
+
+// Сохранение изменений ученика
+async function saveStudentEdit(oldId) {
+    const newName = document.getElementById('editStudentName').value.trim();
+    const newPassword = document.getElementById('editStudentPassword').value.trim();
+    
+    if (!newName) {
+        showAlert('Имя ученика не может быть пустым', 'error');
+        return;
+    }
+    
+    const students = JSON.parse(localStorage.getItem('students') || '{}');
+    
+    if (!students[oldId]) {
+        showAlert('Ученик не найден', 'error');
+        closeEditModal();
+        return;
+    }
+    
+    // Обновляем данные
+    students[oldId].name = newName;
+    if (newPassword) {
+        students[oldId].password = newPassword;
+    }
+    
+    localStorage.setItem('students', JSON.stringify(students));
+    
+    closeEditModal();
+    loadAdminContent();
+    
+    // Если редактируемый ученик был выбран, обновляем его отображение
+    if (currentStudentId === oldId) {
+        document.getElementById('currentStudent').textContent = newName;
+    }
+    
+    await syncToServer();
+    showAlert('Данные ученика обновлены', 'success');
+}
+
+// Закрытие модального окна редактирования
+function closeEditModal() {
+    const modal = document.getElementById('editStudentModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Удаление ученика
+async function deleteStudent(studentId) {
+    const students = JSON.parse(localStorage.getItem('students') || '{}');
+    const student = students[studentId];
+    
+    if (!student) {
+        showAlert('Ученик не найден', 'error');
+        return;
+    }
+    
+    if (!confirm(`Вы уверены, что хотите удалить ученика "${student.name}" (ID: ${studentId})?\n\nЭто действие удалит:\n- Все уроки ученика\n- Все роудмапы ученика\n\nДействие нельзя отменить!`)) {
+        return;
+    }
+    
+    // Удаляем ученика
+    delete students[studentId];
+    localStorage.setItem('students', JSON.stringify(students));
+    
+    // Удаляем уроки ученика
+    const lessons = JSON.parse(localStorage.getItem('lessons') || '{}');
+    delete lessons[studentId];
+    localStorage.setItem('lessons', JSON.stringify(lessons));
+    
+    // Удаляем роудмапы ученика
+    const roadmaps = JSON.parse(localStorage.getItem('roadmaps') || '{}');
+    delete roadmaps[studentId];
+    localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
+    
+    // Если удаляемый ученик был выбран, сбрасываем выбор
+    if (currentStudentId === studentId) {
+        currentStudentId = '';
+        document.getElementById('currentStudent').textContent = 'Не выбран';
+        const roadmapList = document.getElementById('roadmapList');
+        const lessonsList = document.getElementById('lessonsList');
+        if (roadmapList) roadmapList.innerHTML = '<li class="empty-state"><div class="empty-state-icon">🗺️</div><p>Выберите ученика для просмотра роудмапа.</p></li>';
+        if (lessonsList) lessonsList.innerHTML = '<li class="empty-state"><div class="empty-state-icon">📚</div><p>Выберите ученика для просмотра уроков.</p></li>';
+    }
+    
+    loadAdminContent();
+    await syncToServer();
+    showAlert('Ученик удален', 'success');
 }
 
 // Загрузка данных ученика для редактирования
@@ -623,6 +783,11 @@ let roadmapEditor = null;
 function initRoadmapEditor(studentId, roadmapData) {
     const container = document.getElementById('roadmapEditorContainer');
     if (!container) return;
+    
+    // Останавливаем предыдущую анимацию, если редактор уже был открыт
+    if (roadmapEditor && roadmapEditor.stopAnimation) {
+        roadmapEditor.stopAnimation();
+    }
     
     container.innerHTML = `
         <div style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
@@ -1080,11 +1245,24 @@ async function addRoadmapNode(studentId) {
     
     const nodes = roadmaps[studentId].nodes || [];
     const nodeId = `node_${Date.now()}`;
+    
+    // Вычисляем позицию для нового узла
+    let newX = 100;
+    let newY = 100;
+    if (nodes.length > 0) {
+        // Находим максимальную X координату и добавляем новый узел справа
+        const maxX = Math.max(...nodes.map(n => n.x || 0));
+        newX = maxX + 200;
+        // Используем Y координату последнего узла или среднюю
+        const avgY = nodes.reduce((sum, n) => sum + (n.y || 100), 0) / nodes.length;
+        newY = avgY;
+    }
+    
     const newNode = {
         id: nodeId,
         title: title.trim(),
-        x: nodes.length > 0 ? nodes[nodes.length - 1].x + 200 : 100,
-        y: nodes.length > 0 ? nodes[nodes.length - 1].y : 100,
+        x: newX,
+        y: newY,
         completed: false
     };
     
@@ -1092,8 +1270,19 @@ async function addRoadmapNode(studentId) {
     roadmaps[studentId].nodes = nodes;
     localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
     
+    // Обновляем редактор, если он открыт
+    if (roadmapEditor && roadmapEditor.nodes) {
+        roadmapEditor.nodes = nodes;
+        roadmapEditor.connections = roadmaps[studentId].connections || [];
+        roadmapEditor.saveRoadmapData(studentId);
+        roadmapEditor.draw();
+    }
+    
     await syncToServer();
-    loadStudentAdmin(studentId);
+    // Перезагружаем только если редактор не был открыт
+    if (!roadmapEditor) {
+        loadStudentAdmin(studentId);
+    }
     showAlert('Узел добавлен', 'success');
 }
 
