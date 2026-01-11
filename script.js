@@ -18,6 +18,9 @@ function initStorage() {
     if (!localStorage.getItem('roadmaps')) {
         localStorage.setItem('roadmaps', JSON.stringify({}));
     }
+    if (!localStorage.getItem('roadmapTemplates')) {
+        localStorage.setItem('roadmapTemplates', JSON.stringify({}));
+    }
 }
 
 // Флаг для предотвращения одновременных синхронизаций
@@ -635,16 +638,22 @@ function initRoadmapEditor(studentId, roadmapData) {
             <button onclick="deleteSelectedNode('${studentId}')" class="btn btn-danger btn-small" id="deleteNodeBtn" style="display: none;">
                 🗑️ Удалить узел
             </button>
+            <button onclick="saveRoadmapTemplate('${studentId}')" class="btn btn-secondary btn-small">
+                📋 Сохранить как шаблон
+            </button>
+            <button onclick="loadRoadmapTemplate('${studentId}')" class="btn btn-secondary btn-small">
+                📥 Загрузить шаблон
+            </button>
         </div>
         <div style="position: relative; border: 2px solid var(--border-color); border-radius: 8px; background: var(--bg-color); overflow: hidden;">
             <canvas id="roadmapCanvas" width="1200" height="600" style="display: block; cursor: move;"></canvas>
         </div>
-        <div style="margin-top: 12px; font-size: 12px; color: var(--text-secondary);">
+        <div class="roadmap-hint">
             💡 <strong>Перетаскивание:</strong> Перетаскивайте узлы мышью для изменения их позиции.<br>
-            💡 <strong>Редактирование:</strong> Двойной клик по узлу для изменения названия.<br>
-            💡 <strong>Связи:</strong> Включите режим создания связей, затем кликните на два узла подряд для создания связи.<br>
+            💡 <strong>Создание связей:</strong> Перетащите узел на другой узел для создания связи, или используйте режим создания связей.<br>
+            💡 <strong>Редактирование:</strong> Двойной клик по узлу - OK для изменения названия, Отмена для переключения статуса выполнения.<br>
             💡 <strong>Удаление:</strong> Выберите узел (кликните на него), затем нажмите кнопку "Удалить узел".<br>
-            💡 <strong>Масштаб:</strong> Используйте колесико мыши для масштабирования.
+            💡 <strong>Масштаб:</strong> Используйте колесико мыши для масштабирования. Зажмите и перетащите пустое место для панорамирования.
         </div>
     `;
     
@@ -654,9 +663,13 @@ function initRoadmapEditor(studentId, roadmapData) {
     const ctx = canvas.getContext('2d');
     let nodes = roadmapData.nodes || [];
     let connections = roadmapData.connections || [];
+    let lastMousePos = { x: 0, y: 0 };
     const state = {
         selectedNode: null,
-        connectingFrom: null
+        connectingFrom: null,
+        dragStartNode: null,
+        isDraggingConnection: false,
+        tempConnectionEnd: null
     };
     let dragging = false;
     let dragOffset = { x: 0, y: 0 };
@@ -685,6 +698,18 @@ function initRoadmapEditor(studentId, roadmapData) {
         ctx.translate(panX, panY);
         ctx.scale(scale, scale);
         
+        // Рисуем временную линию при перетаскивании связи (будет обновляться в mousemove)
+        if (state.isDraggingConnection && state.dragStartNode && state.tempConnectionEnd) {
+            ctx.strokeStyle = '#6366f1';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(state.dragStartNode.x + 60, state.dragStartNode.y + 40);
+            ctx.lineTo(state.tempConnectionEnd.x, state.tempConnectionEnd.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
         // Рисуем связи
         connections.forEach(conn => {
             const fromNode = nodes.find(n => n.id === conn.from);
@@ -709,37 +734,58 @@ function initRoadmapEditor(studentId, roadmapData) {
             }
         });
         
-        // Рисуем узлы
-        nodes.forEach(node => {
-            const x = node.x;
-            const y = node.y;
+        // Рисуем узлы с анимацией плавания
+        nodes.forEach((node, index) => {
+            const baseX = node.x;
+            const baseY = node.y;
             
-            // Тень
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 2;
+            // Анимация плавания (разные фазы для разных нод)
+            const phase = (animationTime + index * 0.5) % (Math.PI * 2);
+            const floatX = Math.sin(phase) * 2;
+            const floatY = Math.cos(phase * 1.3) * 3;
+            const x = baseX + floatX;
+            const y = baseY + floatY;
+            
+            // Градиент для ноды
+            const gradient = ctx.createRadialGradient(x + 60, y + 40, 0, x + 60, y + 40, 40);
+            if (node === state.selectedNode) {
+                gradient.addColorStop(0, '#818cf8');
+                gradient.addColorStop(1, '#6366f1');
+            } else if (node.completed) {
+                gradient.addColorStop(0, '#34d399');
+                gradient.addColorStop(1, '#10b981');
+            } else {
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(1, '#f1f5f9');
+            }
+            
+            // Тень с эффектом свечения
+            ctx.shadowColor = node === state.selectedNode ? 'rgba(99, 102, 241, 0.4)' : 
+                             (node.completed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(0, 0, 0, 0.15)');
+            ctx.shadowBlur = node === state.selectedNode ? 15 : 10;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 4;
             
             // Фон узла
-            ctx.fillStyle = node === state.selectedNode ? '#6366f1' : (node.completed ? '#10b981' : '#ffffff');
+            ctx.fillStyle = gradient;
             ctx.beginPath();
             ctx.arc(x + 60, y + 40, 40, 0, Math.PI * 2);
             ctx.fill();
             
-            // Сброс тени
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
             
             // Обводка
-            ctx.strokeStyle = node === state.selectedNode ? '#4f46e5' : '#e2e8f0';
-            ctx.lineWidth = 3;
+            ctx.strokeStyle = node === state.selectedNode ? '#4f46e5' : 
+                            (node.completed ? '#059669' : '#cbd5e1');
+            ctx.lineWidth = node === state.selectedNode ? 4 : 3;
             ctx.stroke();
             
             // Текст
             ctx.fillStyle = node === state.selectedNode || node.completed ? '#ffffff' : '#1e293b';
-            ctx.font = 'bold 12px sans-serif';
+            ctx.font = 'bold 13px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             const text = node.title.length > 15 ? node.title.substring(0, 12) + '...' : node.title;
@@ -748,7 +794,7 @@ function initRoadmapEditor(studentId, roadmapData) {
             // Индикатор выполнения
             if (node.completed) {
                 ctx.fillStyle = '#ffffff';
-                ctx.font = '16px sans-serif';
+                ctx.font = 'bold 18px sans-serif';
                 ctx.fillText('✓', x + 60, y + 40);
             }
         });
@@ -803,11 +849,12 @@ function initRoadmapEditor(studentId, roadmapData) {
                 draw();
             }
         } else if (node) {
-            // Начало перетаскивания узла
+            // Начало перетаскивания узла или создания связи перетаскиванием
             state.selectedNode = node;
             dragging = true;
             dragOffset.x = (x - panX) / scale - node.x;
             dragOffset.y = (y - panY) / scale - node.y;
+            state.dragStartNode = node; // Запоминаем начальный узел для возможного создания связи
             canvas.style.cursor = 'grabbing';
             draw();
         } else {
@@ -827,8 +874,26 @@ function initRoadmapEditor(studentId, roadmapData) {
         const isConnectMode = connectModeBtn && connectModeBtn.textContent.includes('(вкл)');
         
         if (dragging && state.selectedNode && !isConnectMode) {
-            state.selectedNode.x = (x - panX) / scale - dragOffset.x;
-            state.selectedNode.y = (y - panY) / scale - dragOffset.y;
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = (x - panX) / scale;
+            const canvasY = (y - panY) / scale;
+            const targetNode = getNodeAt(e.clientX, e.clientY);
+            
+            // Сохраняем позицию мыши для временной линии
+            lastMousePos = { x: e.clientX, y: e.clientY };
+            
+            // Если перетаскиваем на другую ноду - показываем режим создания связи
+            if (targetNode && targetNode !== state.dragStartNode && state.dragStartNode) {
+                state.isDraggingConnection = true;
+                state.tempConnectionEnd = { x: targetNode.x + 60, y: targetNode.y + 40 };
+                canvas.style.cursor = 'crosshair';
+            } else {
+                state.isDraggingConnection = false;
+                state.tempConnectionEnd = { x: canvasX, y: canvasY };
+                state.selectedNode.x = canvasX - dragOffset.x;
+                state.selectedNode.y = canvasY - dragOffset.y;
+                canvas.style.cursor = 'grabbing';
+            }
             draw();
         } else if (isPanning) {
             panX = x - lastPanPoint.x;
@@ -844,17 +909,36 @@ function initRoadmapEditor(studentId, roadmapData) {
         }
     });
     
-    canvas.addEventListener('mouseup', () => {
-        dragging = false;
-        isPanning = false;
+    canvas.addEventListener('mouseup', (e) => {
         const connectModeBtn = document.getElementById('connectModeBtn');
         const isConnectMode = connectModeBtn && connectModeBtn.textContent.includes('(вкл)');
+        
+        // Если перетаскивали связь
+        if (dragging && state.isDraggingConnection && state.dragStartNode) {
+            const targetNode = getNodeAt(e.clientX, e.clientY);
+            if (targetNode && targetNode !== state.dragStartNode) {
+                // Проверяем, нет ли уже такой связи
+                if (!connections.find(c => c.from === state.dragStartNode.id && c.to === targetNode.id)) {
+                    connections.push({ from: state.dragStartNode.id, to: targetNode.id });
+                    saveRoadmapData(studentId);
+                    showAlert('Связь создана перетаскиванием', 'success');
+                }
+            }
+            state.isDraggingConnection = false;
+            state.dragStartNode = null;
+        }
+        
+        dragging = false;
+        isPanning = false;
         if (!isConnectMode) {
             canvas.style.cursor = 'default';
         }
-        if (state.selectedNode && !isConnectMode) {
+        if (state.selectedNode && !isConnectMode && !state.isDraggingConnection) {
             saveRoadmapData(studentId);
         }
+        state.dragStartNode = null;
+        state.isDraggingConnection = false;
+        draw();
     });
     
     canvas.addEventListener('click', (e) => {
@@ -884,11 +968,20 @@ function initRoadmapEditor(studentId, roadmapData) {
         if (!isConnectMode) {
             const node = getNodeAt(e.clientX, e.clientY);
             if (node) {
-                const newTitle = prompt('Введите новое название узла:', node.title);
-                if (newTitle !== null && newTitle.trim()) {
-                    node.title = newTitle.trim();
+                const action = confirm(`Узел: "${node.title}"\n\nНажмите OK для редактирования названия\nИли Отмена для переключения статуса выполнения`);
+                if (action) {
+                    const newTitle = prompt('Введите новое название узла:', node.title);
+                    if (newTitle !== null && newTitle.trim()) {
+                        node.title = newTitle.trim();
+                        saveRoadmapData(studentId);
+                        draw();
+                    }
+                } else {
+                    // Переключение статуса выполнения
+                    node.completed = !node.completed;
                     saveRoadmapData(studentId);
                     draw();
+                    showAlert(node.completed ? 'Узел отмечен как выполненный' : 'Узел отмечен как невыполненный', 'success');
                 }
             }
         }
@@ -917,8 +1010,29 @@ function initRoadmapEditor(studentId, roadmapData) {
         syncToServer();
     }
     
-    roadmapEditor = { nodes, connections, saveRoadmapData, draw, state };
-    draw();
+    // Функция анимации
+    function animate() {
+        animationTime += 0.05;
+        draw();
+        animationId = requestAnimationFrame(animate);
+    }
+    
+    // Запускаем анимацию
+    animate();
+    
+    roadmapEditor = { 
+        nodes, 
+        connections, 
+        saveRoadmapData, 
+        draw, 
+        state,
+        stopAnimation: () => {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+    };
 }
 
 async function addRoadmapNode(studentId) {
@@ -1003,6 +1117,93 @@ async function deleteSelectedNode(studentId) {
 }
 
 // ============================================
+// ШАБЛОНЫ РОУДМАПОВ
+// ============================================
+
+async function saveRoadmapTemplate(studentId) {
+    if (!roadmapEditor) {
+        showAlert('Сначала создайте или откройте роудмап', 'error');
+        return;
+    }
+    
+    const templateName = prompt('Введите название шаблона:');
+    if (!templateName || !templateName.trim()) {
+        return;
+    }
+    
+    const templates = JSON.parse(localStorage.getItem('roadmapTemplates') || '{}');
+    
+    // Создаем копию роудмапа без статусов выполнения
+    const template = {
+        name: templateName.trim(),
+        nodes: roadmapEditor.nodes.map(node => ({
+            id: node.id,
+            title: node.title,
+            x: node.x,
+            y: node.y,
+            completed: false // Сбрасываем статус выполнения
+        })),
+        connections: JSON.parse(JSON.stringify(roadmapEditor.connections))
+    };
+    
+    templates[templateName.trim()] = template;
+    localStorage.setItem('roadmapTemplates', JSON.stringify(templates));
+    
+    await syncToServer();
+    showAlert('Шаблон сохранен', 'success');
+}
+
+async function loadRoadmapTemplate(studentId) {
+    const templates = JSON.parse(localStorage.getItem('roadmapTemplates') || '{}');
+    const templateNames = Object.keys(templates);
+    
+    if (templateNames.length === 0) {
+        showAlert('Нет сохраненных шаблонов', 'error');
+        return;
+    }
+    
+    // Создаем список шаблонов для выбора
+    const templateList = templateNames.map((name, index) => 
+        `${index + 1}. ${name}`
+    ).join('\n');
+    
+    const choice = prompt(`Выберите шаблон (введите номер):\n\n${templateList}\n\nИли введите название шаблона:`);
+    if (!choice) return;
+    
+    let selectedTemplate = null;
+    
+    // Проверяем, введен ли номер
+    const num = parseInt(choice);
+    if (!isNaN(num) && num > 0 && num <= templateNames.length) {
+        selectedTemplate = templates[templateNames[num - 1]];
+    } else {
+        // Ищем по названию
+        selectedTemplate = templates[choice.trim()];
+    }
+    
+    if (!selectedTemplate) {
+        showAlert('Шаблон не найден', 'error');
+        return;
+    }
+    
+    if (!confirm(`Загрузить шаблон "${selectedTemplate.name}"? Текущий роудмап будет заменен.`)) {
+        return;
+    }
+    
+    // Загружаем шаблон
+    const roadmaps = JSON.parse(localStorage.getItem('roadmaps') || '{}');
+    roadmaps[studentId] = {
+        nodes: JSON.parse(JSON.stringify(selectedTemplate.nodes)),
+        connections: JSON.parse(JSON.stringify(selectedTemplate.connections))
+    };
+    localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
+    
+    await syncToServer();
+    loadStudentAdmin(studentId);
+    showAlert('Шаблон загружен', 'success');
+}
+
+// ============================================
 // ВИЗУАЛЬНЫЙ ПРОСМОТР РОУДМАПА (для студента)
 // ============================================
 
@@ -1015,7 +1216,7 @@ function initRoadmapView(studentId, roadmapData) {
             <canvas id="roadmapViewCanvas" width="1200" height="600" style="display: block; cursor: move;"></canvas>
         </div>
         <div style="margin-top: 12px; font-size: 12px; color: var(--text-secondary);">
-            💡 Кликните на узел, чтобы отметить его как выполненный или невыполненный.
+            💡 Роудмап обучения. Статус выполнения отмечает преподаватель.
         </div>
     `;
     
@@ -1041,6 +1242,14 @@ function initRoadmapView(studentId, roadmapData) {
     resizeCanvas();
     const resizeHandler = () => resizeCanvas();
     window.addEventListener('resize', resizeHandler);
+    
+    // Анимация для просмотра
+    let viewAnimationId = null;
+    function animateView() {
+        draw();
+        viewAnimationId = requestAnimationFrame(animateView);
+    }
+    animateView();
     
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1073,17 +1282,39 @@ function initRoadmapView(studentId, roadmapData) {
             }
         });
         
-        // Рисуем узлы
-        nodes.forEach(node => {
-            const x = node.x;
-            const y = node.y;
+        // Рисуем узлы с анимацией плавания
+        let viewAnimationTime = 0;
+        if (!window.viewAnimationTime) window.viewAnimationTime = 0;
+        viewAnimationTime = window.viewAnimationTime;
+        
+        nodes.forEach((node, index) => {
+            const baseX = node.x;
+            const baseY = node.y;
             
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 2;
+            // Анимация плавания
+            const phase = (viewAnimationTime + index * 0.5) % (Math.PI * 2);
+            const floatX = Math.sin(phase) * 2;
+            const floatY = Math.cos(phase * 1.3) * 3;
+            const x = baseX + floatX;
+            const y = baseY + floatY;
             
-            ctx.fillStyle = node.completed ? '#10b981' : '#ffffff';
+            // Градиент
+            const gradient = ctx.createRadialGradient(x + 60, y + 40, 0, x + 60, y + 40, 40);
+            if (node.completed) {
+                gradient.addColorStop(0, '#34d399');
+                gradient.addColorStop(1, '#10b981');
+            } else {
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(1, '#f1f5f9');
+            }
+            
+            // Тень
+            ctx.shadowColor = node.completed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(0, 0, 0, 0.15)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 4;
+            
+            ctx.fillStyle = gradient;
             ctx.beginPath();
             ctx.arc(x + 60, y + 40, 40, 0, Math.PI * 2);
             ctx.fill();
@@ -1093,12 +1324,12 @@ function initRoadmapView(studentId, roadmapData) {
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
             
-            ctx.strokeStyle = node.completed ? '#059669' : '#e2e8f0';
+            ctx.strokeStyle = node.completed ? '#059669' : '#cbd5e1';
             ctx.lineWidth = 3;
             ctx.stroke();
             
             ctx.fillStyle = node.completed ? '#ffffff' : '#1e293b';
-            ctx.font = 'bold 12px sans-serif';
+            ctx.font = 'bold 13px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             const text = node.title.length > 15 ? node.title.substring(0, 12) + '...' : node.title;
@@ -1106,10 +1337,13 @@ function initRoadmapView(studentId, roadmapData) {
             
             if (node.completed) {
                 ctx.fillStyle = '#ffffff';
-                ctx.font = '16px sans-serif';
+                ctx.font = 'bold 18px sans-serif';
                 ctx.fillText('✓', x + 60, y + 40);
             }
         });
+        
+        // Обновляем время анимации
+        window.viewAnimationTime = (window.viewAnimationTime || 0) + 0.05;
         
         ctx.restore();
     }
@@ -1135,19 +1369,10 @@ function initRoadmapView(studentId, roadmapData) {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
-        const node = getNodeAt(e.clientX, e.clientY);
-        
-        if (node) {
-            // Переключение статуса выполнения
-            node.completed = !node.completed;
-            saveRoadmapViewData(studentId);
-            draw();
-        } else {
-            // Начало панорамирования
-            isPanning = true;
-            lastPanPoint = { x: x - panX, y: y - panY };
-            canvas.style.cursor = 'move';
-        }
+        // Только панорамирование для студента
+        isPanning = true;
+        lastPanPoint = { x: x - panX, y: y - panY };
+        canvas.style.cursor = 'move';
     });
     
     canvas.addEventListener('mousemove', (e) => {
@@ -1159,8 +1384,7 @@ function initRoadmapView(studentId, roadmapData) {
             panY = y - lastPanPoint.y;
             draw();
         } else {
-            const node = getNodeAt(e.clientX, e.clientY);
-            canvas.style.cursor = node ? 'pointer' : 'default';
+            canvas.style.cursor = 'default';
         }
     });
     
@@ -1185,14 +1409,7 @@ function initRoadmapView(studentId, roadmapData) {
         draw();
     });
     
-    async function saveRoadmapViewData(sId) {
-        const roadmaps = JSON.parse(localStorage.getItem('roadmaps') || '{}');
-        if (roadmaps[sId]) {
-            roadmaps[sId].nodes = nodes;
-            localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
-            await syncToServer();
-        }
-    }
+    // Убрана функция сохранения для студента - только просмотр
     
     draw();
 }

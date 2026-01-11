@@ -427,15 +427,18 @@ textarea.form-input {
 #roadmapViewContainer {
     width: 100%;
     overflow: auto;
+    position: relative;
 }
 
 #roadmapCanvas,
 #roadmapViewCanvas {
     background: 
-        linear-gradient(90deg, rgba(0,0,0,0.02) 1px, transparent 1px),
-        linear-gradient(rgba(0,0,0,0.02) 1px, transparent 1px);
-    background-size: 20px 20px;
+        linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+        linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+    background-size: 30px 30px;
+    background-color: #f8fafc;
     touch-action: none;
+    border-radius: 8px;
 }
 
 #roadmapCanvas:active,
@@ -460,4 +463,69 @@ textarea.form-input {
     50% {
         opacity: 0.7;
     }
+}
+
+/* Анимация плавания для нод */
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px) translateX(0px);
+    }
+    25% {
+        transform: translateY(-3px) translateX(2px);
+    }
+    50% {
+        transform: translateY(-5px) translateX(0px);
+    }
+    75% {
+        transform: translateY(-3px) translateX(-2px);
+    }
+}
+
+.roadmap-node {
+    animation: float 4s ease-in-out infinite;
+}
+
+.roadmap-node:nth-child(2n) {
+    animation-delay: 0.5s;
+    animation-duration: 4.5s;
+}
+
+.roadmap-node:nth-child(3n) {
+    animation-delay: 1s;
+    animation-duration: 5s;
+}
+
+.roadmap-node:nth-child(4n) {
+    animation-delay: 1.5s;
+    animation-duration: 4.2s;
+}
+
+/* Улучшенные стили для контейнера роудмапа */
+.roadmap-container {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+}
+
+.roadmap-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.roadmap-hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    padding: 12px;
+    background: var(--bg-color);
+    border-radius: 8px;
+    border-left: 4px solid var(--primary-color);
 }
