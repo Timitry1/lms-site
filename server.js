@@ -41,18 +41,44 @@ app.get('/sync', (req, res) => {
   res.json(data);
 });
 
-// POST to overwrite dataset (basic, no auth)
+// POST to merge and overwrite dataset
 app.post('/sync', (req, res) => {
-  const body = req.body;
-  if (!body || typeof body !== 'object') return res.status(400).json({ error: 'Invalid body' });
-  const normalized = {
-    students: body.students || {},
-    lessons: body.lessons || {},
-    roadmaps: body.roadmaps || {},
-    schedule: body.schedule || { slots: {} }
+  const newData = req.body;
+  if (!newData || typeof newData !== 'object') {
+    return res.status(400).json({ error: 'Invalid body' });
+  }
+
+  // Читаем текущие данные с диска
+  const currentData = readData();
+
+  // Аккуратно объединяем данные. Новые данные имеют приоритет.
+  const mergedData = {
+    students: { ...currentData.students, ...newData.students },
+    lessons: { ...currentData.lessons, ...newData.lessons },
+    roadmaps: { ...currentData.roadmaps, ...newData.roadmaps },
+    schedule: { ...currentData.schedule, ...newData.schedule },
   };
-  writeData(normalized);
-  res.json({ ok: true });
+
+  // Обрабатываем удаление: если у ученика в новых данных нет, а в старых есть,
+  // то нужно удалить его уроки, роудмапы и слоты в расписании.
+  if (newData.students) {
+      Object.keys(currentData.students || {}).forEach(studentId => {
+          if (!newData.students[studentId]) {
+              delete mergedData.lessons[studentId];
+              delete mergedData.roadmaps[studentId];
+              if (mergedData.schedule && mergedData.schedule.slots) {
+                  Object.keys(mergedData.schedule.slots).forEach(slotKey => {
+                      if (mergedData.schedule.slots[slotKey] === studentId) {
+                          delete mergedData.schedule.slots[slotKey];
+                      }
+                  });
+              }
+          }
+      });
+  }
+
+  writeData(mergedData);
+  res.json({ ok: true, message: 'Data merged successfully' });
 });
 
 const PORT = process.env.PORT || 3000;
