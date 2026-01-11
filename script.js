@@ -9,6 +9,50 @@ if (!localStorage.getItem('roadmaps')) {
     localStorage.setItem('roadmaps', JSON.stringify({}));
 }
 
+// Если у вас развернут backend, укажите его URL здесь, например:
+// const API_BASE = 'https://your-backend.example.com';
+const API_BASE = '';
+
+async function exportToServer() {
+    if (!API_BASE) return alert('Укажите API_BASE в script.js для экспорта');
+    try {
+        const payload = {
+            students: JSON.parse(localStorage.getItem('students') || '{}'),
+            lessons: JSON.parse(localStorage.getItem('lessons') || '{}'),
+            roadmaps: JSON.parse(localStorage.getItem('roadmaps') || '{}')
+        };
+        const res = await fetch(API_BASE.replace(/\/$/, '') + '/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) alert('Экспорт успешно выполнен');
+        else alert('Ошибка экспорта: ' + (data.error || res.status));
+    } catch (e) {
+        alert('Ошибка сети при экспорте: ' + e.message);
+    }
+}
+
+async function importFromServer() {
+    if (!API_BASE) return alert('Укажите API_BASE в script.js для импорта');
+    if (!confirm('Импорт перезапишет локальные данные. Продолжить?')) return;
+    try {
+        const res = await fetch(API_BASE.replace(/\/$/, '') + '/sync');
+        if (!res.ok) return alert('Ошибка импорта: ' + res.status);
+        const data = await res.json();
+        localStorage.setItem('students', JSON.stringify(data.students || {}));
+        localStorage.setItem('lessons', JSON.stringify(data.lessons || {}));
+        localStorage.setItem('roadmaps', JSON.stringify(data.roadmaps || {}));
+        alert('Импорт завершён');
+        // Обновим UI
+        if (document.getElementById('studentsList')) loadAdminContent();
+        if (currentStudentId) loadStudentAdmin(currentStudentId);
+    } catch (e) {
+        alert('Ошибка сети при импорте: ' + e.message);
+    }
+}
+
 // Логин
 document.addEventListener('DOMContentLoaded', () => {
     const path = window.location.pathname.split('/').pop();

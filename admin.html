@@ -10,6 +10,11 @@
     <div class="dashboard" id="adminDash">
         <h1>Админ-панель</h1>
         <button onclick="logout()">Выход</button>
+        <div style="margin-top:10px">
+            <button onclick="exportToServer()">Экспорт на сервер</button>
+            <button onclick="importFromServer()">Импорт с сервера</button>
+            <small>Нужен запущенный backend и указанный `API_BASE` в script.js</small>
+        </div>
         <h2>Ученики</h2>
         <input id="studentId" placeholder="ID ученика">
         <input id="studentName" placeholder="Имя">
