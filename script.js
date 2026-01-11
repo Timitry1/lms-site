@@ -21,6 +21,9 @@ function initStorage() {
     if (!localStorage.getItem('roadmapTemplates')) {
         localStorage.setItem('roadmapTemplates', JSON.stringify({}));
     }
+    if (!localStorage.getItem('whiteboards')) {
+        localStorage.setItem('whiteboards', JSON.stringify({}));
+    }
     if (!localStorage.getItem('schedule')) {
         localStorage.setItem('schedule', JSON.stringify({ slots: {} }));
     }
@@ -64,7 +67,8 @@ async function syncToServer() {
             students: JSON.parse(localStorage.getItem('students') || '{}'),
             lessons: JSON.parse(localStorage.getItem('lessons') || '{}'),
             roadmaps: JSON.parse(localStorage.getItem('roadmaps') || '{}'),
-            schedule: JSON.parse(localStorage.getItem('schedule') || '{"slots":{}}')
+            schedule: JSON.parse(localStorage.getItem('schedule') || '{"slots":{}}'),
+            whiteboards: JSON.parse(localStorage.getItem('whiteboards') || '{}')
         };
         
         const url = API_BASE.replace(/\/$/, '') + '/sync';
@@ -134,6 +138,7 @@ async function syncFromServer() {
         if (data.lessons) localStorage.setItem('lessons', JSON.stringify(data.lessons));
         if (data.roadmaps) localStorage.setItem('roadmaps', JSON.stringify(data.roadmaps));
         if (data.schedule) localStorage.setItem('schedule', JSON.stringify(data.schedule));
+        if (data.whiteboards) localStorage.setItem('whiteboards', JSON.stringify(data.whiteboards));
         
         updateSyncStatus('success', 'Данные загружены');
         setTimeout(() => updateSyncStatus('ready', 'Готов к синхронизации'), 2000);
@@ -489,6 +494,11 @@ async function deleteStudent(studentId) {
     delete roadmaps[studentId];
     localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
 
+    // Удаляем доску ученика
+    const whiteboards = JSON.parse(localStorage.getItem('whiteboards') || '{}');
+    delete whiteboards[studentId];
+    localStorage.setItem('whiteboards', JSON.stringify(whiteboards));
+
     const schedule = getScheduleData();
     Object.keys(schedule.slots || {}).forEach(key => {
         if (schedule.slots[key] === studentId) {
@@ -516,6 +526,7 @@ async function deleteStudent(studentId) {
 // Загрузка данных ученика для редактирования
 function loadStudentAdmin(id) {
     currentStudentId = id;
+    initWhiteboard(id); // Инициализируем доску
     const students = JSON.parse(localStorage.getItem('students') || '{}');
     document.getElementById('currentStudent').textContent = students[id]?.name || id;
 
@@ -933,6 +944,141 @@ function loadStudentContent(id) {
             initRoadmapView(id, roadmapData);
         }
     }
+}
+
+// ============================================
+// ОБЩАЯ ДОСКА
+// ============================================
+
+let whiteboardState = {
+    isDrawing: false,
+    color: '#000000',
+    lastX: 0,
+    lastY: 0,
+};
+
+function initWhiteboard(studentId) {
+    const container = document.getElementById('whiteboardContainer');
+    if (!container) return;
+
+    // Создаем UI
+    container.innerHTML = `
+        <div class="whiteboard-toolbar">
+            <label for="wbColorPicker">Цвет:</label>
+            <input type="color" id="wbColorPicker" value="#000000">
+            <button id="wbClearBtn" class="btn btn-danger btn-small">Очистить доску</button>
+        </div>
+        <canvas id="whiteboardCanvas"></canvas>
+    `;
+
+    const canvas = document.getElementById('whiteboardCanvas');
+    const colorPicker = document.getElementById('wbColorPicker');
+    const clearBtn = document.getElementById('wbClearBtn');
+    const ctx = canvas.getContext('2d');
+
+    // Устанавливаем размер canvas, подгоняя под контейнер
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height - 50; // 50px - примерная высота тулбара
+
+    let paths = (JSON.parse(localStorage.getItem('whiteboards') || '{}')[studentId] || []);
+
+    function savePaths() {
+        const whiteboards = JSON.parse(localStorage.getItem('whiteboards') || '{}');
+        whiteboards[studentId] = paths;
+        localStorage.setItem('whiteboards', JSON.stringify(whiteboards));
+        syncToServer();
+    }
+
+    function redrawCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        paths.forEach(path => {
+            ctx.strokeStyle = path.color;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(path.points[0].x * canvas.width, path.points[0].y * canvas.height);
+            for (let i = 1; i < path.points.length; i++) {
+                ctx.lineTo(path.points[i].x * canvas.width, path.points[i].y * canvas.height);
+            }
+            ctx.stroke();
+        });
+    }
+
+    let currentPath = [];
+
+    function startDrawing(e) {
+        whiteboardState.isDrawing = true;
+        const pos = getMousePos(canvas, e);
+        currentPath = {
+            color: whiteboardState.color,
+            points: [{ x: pos.x / canvas.width, y: pos.y / canvas.height }]
+        };
+    }
+
+    function draw(e) {
+        if (!whiteboardState.isDrawing) return;
+        const pos = getMousePos(canvas, e);
+        const point = { x: pos.x / canvas.width, y: pos.y / canvas.height };
+        currentPath.points.push(point);
+
+        ctx.strokeStyle = whiteboardState.color;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        const lastPoint = currentPath.points[currentPath.points.length - 2];
+        ctx.moveTo(lastPoint.x * canvas.width, lastPoint.y * canvas.height);
+        ctx.lineTo(point.x * canvas.width, point.y * canvas.height);
+        ctx.stroke();
+    }
+
+    function stopDrawing() {
+        if (!whiteboardState.isDrawing || currentPath.points.length < 2) {
+            whiteboardState.isDrawing = false;
+            return;
+        }
+        whiteboardState.isDrawing = false;
+        paths.push(currentPath);
+        savePaths();
+        currentPath = [];
+    }
+
+    function getMousePos(canvas, evt) {
+        const rect = canvas.getBoundingClientRect();
+        const touch = evt.touches ? evt.touches[0] : null;
+        return {
+            x: (touch ? touch.clientX : evt.clientX) - rect.left,
+            y: (touch ? touch.clientY : evt.clientY) - rect.top
+        };
+    }
+
+    // Event Listeners
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseleave', stopDrawing);
+    
+    // Touch events
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDrawing);
+
+    colorPicker.addEventListener('change', (e) => {
+        whiteboardState.color = e.target.value;
+    });
+
+    clearBtn.addEventListener('click', () => {
+        if (confirm('Вы уверены, что хотите очистить доску? Это действие нельзя отменить.')) {
+            paths = [];
+            savePaths();
+            redrawCanvas();
+        }
+    });
+
+    // Initial draw
+    redrawCanvas();
 }
 
 // ============================================

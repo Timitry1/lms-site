@@ -15,7 +15,7 @@ function readData() {
     const raw = fs.readFileSync(DATA_FILE, 'utf8');
     return JSON.parse(raw || '{}');
   } catch (e) {
-    return { students: {}, lessons: {}, roadmaps: {}, schedule: { slots: {} } };
+    return { students: {}, lessons: {}, roadmaps: {}, schedule: { slots: {} }, whiteboards: {} };
   }
 }
 
@@ -57,6 +57,7 @@ app.post('/sync', (req, res) => {
     lessons: { ...currentData.lessons, ...newData.lessons },
     roadmaps: { ...currentData.roadmaps, ...newData.roadmaps },
     schedule: { ...currentData.schedule, ...newData.schedule },
+    whiteboards: { ...currentData.whiteboards, ...newData.whiteboards },
   };
 
   // Обрабатываем удаление: если у ученика в новых данных нет, а в старых есть,
@@ -66,6 +67,7 @@ app.post('/sync', (req, res) => {
           if (!newData.students[studentId]) {
               delete mergedData.lessons[studentId];
               delete mergedData.roadmaps[studentId];
+              delete mergedData.whiteboards[studentId];
               if (mergedData.schedule && mergedData.schedule.slots) {
                   Object.keys(mergedData.schedule.slots).forEach(slotKey => {
                       if (mergedData.schedule.slots[slotKey] === studentId) {
