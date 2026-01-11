@@ -19,7 +19,7 @@ let isSyncing = false;
 
 // Автоматическая синхронизация с сервером
 async function syncToServer() {
-    if (!API_BASE || isSyncing) return;
+    if (!API_BASE || API_BASE.trim() === '' || isSyncing) return;
     isSyncing = true;
     try {
         const payload = {
@@ -27,16 +27,21 @@ async function syncToServer() {
             lessons: JSON.parse(localStorage.getItem('lessons') || '{}'),
             roadmaps: JSON.parse(localStorage.getItem('roadmaps') || '{}')
         };
-        const res = await fetch(API_BASE.replace(/\/$/, '') + '/sync', {
+        const url = API_BASE.replace(/\/$/, '') + '/sync';
+        console.log('Синхронизация с сервером:', url);
+        const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         if (!res.ok) {
-            console.warn('Ошибка синхронизации с сервером:', res.status);
+            console.warn('Ошибка синхронизации с сервером:', res.status, res.statusText);
+            throw new Error(`Сервер вернул ошибку: ${res.status} ${res.statusText}`);
         }
+        console.log('Синхронизация успешна');
     } catch (e) {
-        console.warn('Ошибка сети при синхронизации:', e.message);
+        console.error('Ошибка сети при синхронизации:', e.message);
+        throw e;
     } finally {
         isSyncing = false;
     }
@@ -44,12 +49,14 @@ async function syncToServer() {
 
 // Загрузка данных с сервера
 async function syncFromServer() {
-    if (!API_BASE || isSyncing) return;
+    if (!API_BASE || API_BASE.trim() === '' || isSyncing) return;
     isSyncing = true;
     try {
-        const res = await fetch(API_BASE.replace(/\/$/, '') + '/sync');
+        const url = API_BASE.replace(/\/$/, '') + '/sync';
+        console.log('Загрузка данных с сервера:', url);
+        const res = await fetch(url);
         if (!res.ok) {
-            console.warn('Ошибка загрузки с сервера:', res.status);
+            console.warn('Ошибка загрузки с сервера:', res.status, res.statusText);
             return;
         }
         const data = await res.json();
@@ -62,6 +69,8 @@ async function syncFromServer() {
         localStorage.setItem('students', JSON.stringify(serverStudents));
         localStorage.setItem('lessons', JSON.stringify(serverLessons));
         localStorage.setItem('roadmaps', JSON.stringify(serverRoadmaps));
+        
+        console.log('Данные загружены с сервера');
         
         // Обновляем UI
         if (document.getElementById('studentsList')) loadAdminContent();
@@ -79,7 +88,9 @@ async function syncFromServer() {
 
 // Ручной экспорт (для админа)
 async function exportToServer() {
-    if (!API_BASE) return alert('Укажите API_BASE в script.js для экспорта');
+    if (!API_BASE || API_BASE.trim() === '') {
+        return alert('Укажите API_BASE в script.js для экспорта. Текущее значение: "' + API_BASE + '"');
+    }
     try {
         await syncToServer();
         alert('Экспорт успешно выполнен');
