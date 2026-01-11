@@ -12,7 +12,7 @@ if (!localStorage.getItem('roadmaps')) {
 // Если у вас развернут backend, укажите его URL здесь, например:
 // const API_BASE = 'https://your-backend.example.com';
 // Для локальной разработки: 'http://localhost:3000'
-const API_BASE = 'https://lms-site-1.onrender.com/';
+const API_BASE = 'https://lms-site-1.onrender.com';
 
 // Флаг для предотвращения циклических обновлений
 let isSyncing = false;
