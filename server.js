@@ -15,7 +15,7 @@ function readData() {
     const raw = fs.readFileSync(DATA_FILE, 'utf8');
     return JSON.parse(raw || '{}');
   } catch (e) {
-    return { students: {}, lessons: {}, roadmaps: {} };
+    return { students: {}, lessons: {}, roadmaps: {}, schedule: { slots: {} } };
   }
 }
 
@@ -48,7 +48,8 @@ app.post('/sync', (req, res) => {
   const normalized = {
     students: body.students || {},
     lessons: body.lessons || {},
-    roadmaps: body.roadmaps || {}
+    roadmaps: body.roadmaps || {},
+    schedule: body.schedule || { slots: {} }
   };
   writeData(normalized);
   res.json({ ok: true });

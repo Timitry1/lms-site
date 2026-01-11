@@ -21,6 +21,9 @@ function initStorage() {
     if (!localStorage.getItem('roadmapTemplates')) {
         localStorage.setItem('roadmapTemplates', JSON.stringify({}));
     }
+    if (!localStorage.getItem('schedule')) {
+        localStorage.setItem('schedule', JSON.stringify({ slots: {} }));
+    }
 }
 
 // Флаг для предотвращения одновременных синхронизаций
@@ -60,7 +63,8 @@ async function syncToServer() {
         const payload = {
             students: JSON.parse(localStorage.getItem('students') || '{}'),
             lessons: JSON.parse(localStorage.getItem('lessons') || '{}'),
-            roadmaps: JSON.parse(localStorage.getItem('roadmaps') || '{}')
+            roadmaps: JSON.parse(localStorage.getItem('roadmaps') || '{}'),
+            schedule: JSON.parse(localStorage.getItem('schedule') || '{"slots":{}}')
         };
         
         const url = API_BASE.replace(/\/$/, '') + '/sync';
@@ -129,6 +133,7 @@ async function syncFromServer() {
         if (data.students) localStorage.setItem('students', JSON.stringify(data.students));
         if (data.lessons) localStorage.setItem('lessons', JSON.stringify(data.lessons));
         if (data.roadmaps) localStorage.setItem('roadmaps', JSON.stringify(data.roadmaps));
+        if (data.schedule) localStorage.setItem('schedule', JSON.stringify(data.schedule));
         
         updateSyncStatus('success', 'Данные загружены');
         setTimeout(() => updateSyncStatus('ready', 'Готов к синхронизации'), 2000);
@@ -160,8 +165,10 @@ function refreshUI() {
         if (currentStudentId) {
             loadStudentAdmin(currentStudentId);
         }
+        renderScheduleAdmin();
     } else if (user.role === 'student' && user.id) {
         loadStudentContent(user.id);
+        renderScheduleStudent(user.id);
     }
 }
 
@@ -258,9 +265,11 @@ function loadDashboard(page) {
         document.getElementById('studentDash').style.display = 'block';
         document.getElementById('studentNameDisp').textContent = user.name || 'Ученик';
         loadStudentContent(user.id);
+        renderScheduleStudent(user.id);
     } else if (user.role === 'admin') {
         document.getElementById('adminDash').style.display = 'block';
         loadAdminContent();
+        renderScheduleAdmin();
     }
 }
 
@@ -479,6 +488,14 @@ async function deleteStudent(studentId) {
     const roadmaps = JSON.parse(localStorage.getItem('roadmaps') || '{}');
     delete roadmaps[studentId];
     localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
+
+    const schedule = getScheduleData();
+    Object.keys(schedule.slots || {}).forEach(key => {
+        if (schedule.slots[key] === studentId) {
+            delete schedule.slots[key];
+        }
+    });
+    setScheduleData(schedule);
     
     // Если удаляемый ученик был выбран, сбрасываем выбор
     if (currentStudentId === studentId) {
@@ -491,6 +508,7 @@ async function deleteStudent(studentId) {
     }
     
     loadAdminContent();
+    renderScheduleAdmin();
     await syncToServer();
     showAlert('Ученик удален', 'success');
 }
@@ -500,6 +518,12 @@ function loadStudentAdmin(id) {
     currentStudentId = id;
     const students = JSON.parse(localStorage.getItem('students') || '{}');
     document.getElementById('currentStudent').textContent = students[id]?.name || id;
+
+    const scheduleSelectedStudent = document.getElementById('scheduleSelectedStudent');
+    if (scheduleSelectedStudent) {
+        scheduleSelectedStudent.textContent = students[id]?.name || id;
+    }
+    renderScheduleAdmin();
     
     const lessons = JSON.parse(localStorage.getItem('lessons') || '{}')[id] || [];
     const lessonsList = document.getElementById('lessonsList');
@@ -559,6 +583,170 @@ function loadStudentAdmin(id) {
             initRoadmapEditor(id, roadmapData);
         }
     }
+}
+
+function getScheduleData() {
+    const raw = localStorage.getItem('schedule');
+    try {
+        const parsed = JSON.parse(raw || '{"slots":{}}');
+        if (!parsed || typeof parsed !== 'object') return { slots: {} };
+        if (!parsed.slots || typeof parsed.slots !== 'object') parsed.slots = {};
+        return parsed;
+    } catch (_) {
+        return { slots: {} };
+    }
+}
+
+function setScheduleData(schedule) {
+    const normalized = schedule && typeof schedule === 'object' ? schedule : { slots: {} };
+    if (!normalized.slots || typeof normalized.slots !== 'object') normalized.slots = {};
+    localStorage.setItem('schedule', JSON.stringify(normalized));
+}
+
+function scheduleSlotKey(dayIndex, hour) {
+    return `${dayIndex}_${hour}`;
+}
+
+function renderScheduleAdmin() {
+    const container = document.getElementById('scheduleAdmin');
+    if (!container) return;
+
+    const students = JSON.parse(localStorage.getItem('students') || '{}');
+    const schedule = getScheduleData();
+
+    container.innerHTML = '';
+
+    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    const hours = Array.from({ length: 12 }, (_, i) => 9 + i);
+
+    const grid = document.createElement('div');
+    grid.className = 'schedule-grid';
+
+    const emptyHeader = document.createElement('div');
+    emptyHeader.className = 'schedule-header';
+    grid.appendChild(emptyHeader);
+    days.forEach(d => {
+        const h = document.createElement('div');
+        h.className = 'schedule-header';
+        h.textContent = d;
+        grid.appendChild(h);
+    });
+
+    hours.forEach(hour => {
+        const time = document.createElement('div');
+        time.className = 'schedule-time';
+        time.textContent = `${String(hour).padStart(2, '0')}:00`;
+        grid.appendChild(time);
+
+        for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+            const key = scheduleSlotKey(dayIndex, hour);
+            const assignedTo = schedule.slots[key];
+            const cell = document.createElement('div');
+            const isAssigned = !!assignedTo;
+            const isAssignedToCurrent = !!assignedTo && assignedTo === currentStudentId;
+            cell.className = `schedule-cell ${isAssigned ? 'is-assigned' : 'is-free'}${isAssignedToCurrent ? ' is-assigned-to-current' : ''}`;
+            cell.textContent = assignedTo ? (students[assignedTo]?.name || assignedTo) : 'Свободно';
+            cell.onclick = async () => {
+                if (!currentStudentId) {
+                    showAlert('Сначала выберите ученика для назначения слотов', 'error');
+                    return;
+                }
+
+                const latestSchedule = getScheduleData();
+                const currentAssigned = latestSchedule.slots[key];
+
+                if (!currentAssigned) {
+                    latestSchedule.slots[key] = currentStudentId;
+                    setScheduleData(latestSchedule);
+                    renderScheduleAdmin();
+                    await syncToServer();
+                    return;
+                }
+
+                if (currentAssigned === currentStudentId) {
+                    delete latestSchedule.slots[key];
+                    setScheduleData(latestSchedule);
+                    renderScheduleAdmin();
+                    await syncToServer();
+                    return;
+                }
+
+                const otherName = students[currentAssigned]?.name || currentAssigned;
+                const currentName = students[currentStudentId]?.name || currentStudentId;
+                if (confirm(`Этот слот уже занят: ${otherName}\n\nПереназначить на ${currentName}?`)) {
+                    latestSchedule.slots[key] = currentStudentId;
+                    setScheduleData(latestSchedule);
+                    renderScheduleAdmin();
+                    await syncToServer();
+                }
+            };
+            grid.appendChild(cell);
+        }
+    });
+
+    container.appendChild(grid);
+
+    const legend = document.createElement('div');
+    legend.className = 'schedule-legend';
+    legend.innerHTML = `
+        <div class="schedule-legend-item"><span class="schedule-legend-dot"></span> Свободно</div>
+        <div class="schedule-legend-item"><span class="schedule-legend-dot assigned"></span> Занято</div>
+        <div class="schedule-legend-item"><span class="schedule-legend-dot current"></span> Выбранный ученик</div>
+    `;
+    container.appendChild(legend);
+}
+
+function renderScheduleStudent(studentId) {
+    const container = document.getElementById('scheduleStudent');
+    if (!container) return;
+
+    const students = JSON.parse(localStorage.getItem('students') || '{}');
+    const schedule = getScheduleData();
+
+    container.innerHTML = '';
+
+    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    const hours = Array.from({ length: 12 }, (_, i) => 9 + i);
+
+    const grid = document.createElement('div');
+    grid.className = 'schedule-grid';
+
+    const emptyHeader = document.createElement('div');
+    emptyHeader.className = 'schedule-header';
+    grid.appendChild(emptyHeader);
+    days.forEach(d => {
+        const h = document.createElement('div');
+        h.className = 'schedule-header';
+        h.textContent = d;
+        grid.appendChild(h);
+    });
+
+    hours.forEach(hour => {
+        const time = document.createElement('div');
+        time.className = 'schedule-time';
+        time.textContent = `${String(hour).padStart(2, '0')}:00`;
+        grid.appendChild(time);
+
+        for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+            const key = scheduleSlotKey(dayIndex, hour);
+            const assignedTo = schedule.slots[key];
+            const cell = document.createElement('div');
+            const isMine = assignedTo === studentId;
+
+            cell.className = `schedule-cell is-readonly ${isMine ? 'is-assigned is-assigned-to-current' : 'is-free'}`;
+            cell.textContent = isMine ? (students[studentId]?.name || 'Занято') : '';
+            grid.appendChild(cell);
+        }
+    });
+
+    container.appendChild(grid);
+
+    const legend = document.createElement('div');
+    legend.className = 'schedule-legend';
+    legend.innerHTML = `
+        <div class="schedule-legend-item"><span class="schedule-legend-dot current"></span> Мои слоты</div>
+    `;
+    container.appendChild(legend);
 }
 
 // Добавление урока

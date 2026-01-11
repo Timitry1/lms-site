@@ -548,3 +548,110 @@ textarea.form-input {
     transform: translateY(-2px);
     box-shadow: var(--shadow-lg);
 }
+
+ .schedule-container {
+     width: 100%;
+     overflow: auto;
+ }
+
+ .schedule-grid {
+     display: grid;
+     grid-template-columns: 80px repeat(7, minmax(120px, 1fr));
+     gap: 8px;
+     align-items: stretch;
+ }
+
+ .schedule-header {
+     font-size: 12px;
+     font-weight: 600;
+     color: var(--text-secondary);
+     padding: 8px;
+     text-align: center;
+ }
+
+ .schedule-time {
+     font-size: 12px;
+     font-weight: 600;
+     color: var(--text-secondary);
+     padding: 10px 8px;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     background: var(--bg-color);
+     border-radius: 8px;
+     border: 1px solid var(--border-color);
+ }
+
+ .schedule-cell {
+     border-radius: 8px;
+     border: 2px solid var(--border-color);
+     background: #ffffff;
+     padding: 10px 10px;
+     min-height: 44px;
+     cursor: pointer;
+     transition: all 0.2s ease;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     text-align: center;
+     font-size: 12px;
+     color: var(--text-secondary);
+ }
+
+ .schedule-cell:hover {
+     transform: translateY(-1px);
+     box-shadow: var(--shadow);
+ }
+
+ .schedule-cell.is-free {
+     background: #ffffff;
+ }
+
+ .schedule-cell.is-assigned {
+     border-color: rgba(99, 102, 241, 0.6);
+     background: rgba(99, 102, 241, 0.08);
+     color: var(--text-primary);
+     font-weight: 600;
+ }
+
+ .schedule-cell.is-assigned-to-current {
+     border-color: rgba(16, 185, 129, 0.7);
+     background: rgba(16, 185, 129, 0.10);
+ }
+
+ .schedule-cell.is-readonly {
+     cursor: default;
+ }
+
+ .schedule-legend {
+     display: flex;
+     gap: 12px;
+     flex-wrap: wrap;
+     margin-top: 12px;
+     font-size: 12px;
+     color: var(--text-secondary);
+ }
+
+ .schedule-legend-item {
+     display: inline-flex;
+     align-items: center;
+     gap: 8px;
+ }
+
+ .schedule-legend-dot {
+     width: 12px;
+     height: 12px;
+     border-radius: 4px;
+     border: 2px solid var(--border-color);
+     background: #ffffff;
+ }
+
+ .schedule-legend-dot.assigned {
+     border-color: rgba(99, 102, 241, 0.6);
+     background: rgba(99, 102, 241, 0.08);
+ }
+
+ .schedule-legend-dot.current {
+     border-color: rgba(16, 185, 129, 0.7);
+     background: rgba(16, 185, 129, 0.10);
+ }
