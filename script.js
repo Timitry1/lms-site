@@ -843,18 +843,10 @@ function initRoadmapEditor(studentId, roadmapData) {
     let panY = 0;
     let isPanning = false;
     let lastPanPoint = { x: 0, y: 0 };
+    let animationTime = 0;
+    let animationId = null;
     
-    // Обработка изменения размера canvas
-    function resizeCanvas() {
-        const parentContainer = container.parentElement;
-        canvas.width = Math.max(1200, parentContainer ? parentContainer.clientWidth - 40 : 1200);
-        canvas.height = 600;
-        draw();
-    }
-    
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    
+    // Функция draw должна быть определена до resizeCanvas
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
@@ -1000,6 +992,18 @@ function initRoadmapEditor(studentId, roadmapData) {
         
         ctx.restore();
     }
+    
+    // Обработка изменения размера canvas (после определения draw)
+    function resizeCanvas() {
+        const parentContainer = container.parentElement;
+        canvas.width = Math.max(1200, parentContainer ? parentContainer.clientWidth - 40 : 1200);
+        canvas.height = 600;
+        draw();
+    }
+    
+    // Инициализация canvas
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
     
     function getNodeAt(x, y) {
         const rect = canvas.getBoundingClientRect();
