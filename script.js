@@ -1462,19 +1462,10 @@ async function addRoadmapNode(studentId) {
     roadmaps[studentId].nodes = nodes;
     localStorage.setItem('roadmaps', JSON.stringify(roadmaps));
     
-    // Обновляем редактор, если он открыт
-    if (roadmapEditor && roadmapEditor.nodes) {
-        roadmapEditor.nodes = nodes;
-        roadmapEditor.connections = roadmaps[studentId].connections || [];
-        roadmapEditor.saveRoadmapData(studentId);
-        roadmapEditor.draw();
-    }
-    
     await syncToServer();
-    // Перезагружаем только если редактор не был открыт
-    if (!roadmapEditor) {
-        loadStudentAdmin(studentId);
-    }
+
+    // Перезагружаем контент ученика, чтобы переинициализировать редактор с новыми данными
+    loadStudentAdmin(studentId);
     showAlert('Узел добавлен', 'success');
 }
 
