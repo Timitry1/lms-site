@@ -23,6 +23,18 @@ function writeData(obj) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
 }
 
+// Корневой маршрут для проверки работы сервера
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'LMS Backend is running',
+    endpoints: {
+      'GET /sync': 'Get all data',
+      'POST /sync': 'Save all data'
+    }
+  });
+});
+
 // GET full dataset
 app.get('/sync', (req, res) => {
   const data = readData();
