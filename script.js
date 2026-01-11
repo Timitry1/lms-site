@@ -617,7 +617,7 @@ function renderScheduleAdmin() {
     container.innerHTML = '';
 
     const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    const hours = Array.from({ length: 12 }, (_, i) => 9 + i);
+    const hours = Array.from({ length: 13 }, (_, i) => 9 + i);
 
     const grid = document.createElement('div');
     grid.className = 'schedule-grid';
@@ -706,7 +706,7 @@ function renderScheduleStudent(studentId) {
     container.innerHTML = '';
 
     const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    const hours = Array.from({ length: 12 }, (_, i) => 9 + i);
+    const hours = Array.from({ length: 13 }, (_, i) => 9 + i);
 
     const grid = document.createElement('div');
     grid.className = 'schedule-grid';
