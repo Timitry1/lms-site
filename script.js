@@ -1,7 +1,7 @@
 // ============================================
 // КОНФИГУРАЦИЯ
 // ============================================
-const API_BASE = 'https://lms-site-1.onrender.com'; // URL вашего backend сервера
+const API_BASE = 'https://lms-backend-2ft2.onrender.com'; // URL вашего backend сервера
 
 // ============================================
 // ИНИЦИАЛИЗАЦИЯ И СИНХРОНИЗАЦИЯ
@@ -61,6 +61,8 @@ async function syncToServer() {
         };
         
         const url = API_BASE.replace(/\/$/, '') + '/sync';
+        console.log('🔄 Попытка синхронизации с:', url);
+        
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -68,14 +70,25 @@ async function syncToServer() {
         });
         
         if (!response.ok) {
-            throw new Error(`Сервер вернул ошибку: ${response.status}`);
+            if (response.status === 404) {
+                throw new Error('Сервер не найден. Проверьте, что на Render.com создан Web Service (не Static Site)!');
+            }
+            throw new Error(`Сервер вернул ошибку: ${response.status} ${response.statusText}`);
         }
+        
+        const result = await response.json();
+        console.log('✅ Данные успешно синхронизированы:', result);
         
         updateSyncStatus('success', 'Синхронизировано');
         setTimeout(() => updateSyncStatus('ready', 'Готов к синхронизации'), 2000);
         
     } catch (error) {
-        console.error('Ошибка синхронизации:', error);
+        console.error('❌ Ошибка синхронизации:', error);
+        console.error('💡 Проверьте:');
+        console.error('   1. На Render.com создан Web Service (не Static Site)');
+        console.error('   2. URL в API_BASE правильный:', API_BASE);
+        console.error('   3. Сервер запущен (проверьте логи на Render.com)');
+        
         updateSyncStatus('error', 'Ошибка синхронизации');
         setTimeout(() => updateSyncStatus('ready', 'Готов к синхронизации'), 3000);
     } finally {
@@ -92,13 +105,22 @@ async function syncFromServer() {
     
     try {
         const url = API_BASE.replace(/\/$/, '') + '/sync';
-        const response = await fetch(url);
+        console.log('🔄 Попытка загрузки данных с:', url);
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
         
         if (!response.ok) {
-            throw new Error(`Сервер вернул ошибку: ${response.status}`);
+            if (response.status === 404) {
+                throw new Error('Сервер не найден. Проверьте, что на Render.com создан Web Service (не Static Site)!');
+            }
+            throw new Error(`Сервер вернул ошибку: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
+        console.log('✅ Данные успешно загружены:', data);
         
         // Сохраняем данные с сервера
         if (data.students) localStorage.setItem('students', JSON.stringify(data.students));
@@ -112,8 +134,14 @@ async function syncFromServer() {
         refreshUI();
         
     } catch (error) {
-        console.error('Ошибка загрузки:', error);
+        console.error('❌ Ошибка загрузки:', error);
+        console.error('💡 Проверьте:');
+        console.error('   1. На Render.com создан Web Service (не Static Site)');
+        console.error('   2. URL в API_BASE правильный:', API_BASE);
+        console.error('   3. Сервер запущен (проверьте логи на Render.com)');
+        
         updateSyncStatus('error', 'Ошибка загрузки');
+        showAlert('Ошибка синхронизации. Проверьте консоль (F12) для деталей.', 'error');
         setTimeout(() => updateSyncStatus('ready', 'Готов к синхронизации'), 3000);
     } finally {
         isSyncing = false;
@@ -142,8 +170,16 @@ function refreshUI() {
 document.addEventListener('DOMContentLoaded', async () => {
     initStorage();
     
-    // Автоматическая загрузка данных с сервера при загрузке
-    if (API_BASE) {
+    // Проверка и отладка API_BASE
+    console.log('🔧 Конфигурация:');
+    console.log('   API_BASE:', API_BASE || 'НЕ УСТАНОВЛЕН!');
+    
+    if (!API_BASE || API_BASE.trim() === '') {
+        console.warn('⚠️ API_BASE не установлен! Синхронизация не будет работать.');
+        console.warn('💡 Установите API_BASE в script.js на строке 4');
+    } else {
+        console.log('✅ API_BASE установлен, начинаем синхронизацию...');
+        // Автоматическая загрузка данных с сервера при загрузке
         await syncFromServer();
     }
     
